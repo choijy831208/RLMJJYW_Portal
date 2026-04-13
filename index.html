@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비밀 포털 대시보드</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="login-container">
+        <h2><i class="fas fa-robot"></i> 가족 AI 로그인</h2>
+        <input type="text" id="username" placeholder="ID를 입력하세요">
+        <input type="password" id="password" placeholder="비밀번호를 입력하세요...">
+        <button id="login-btn"><i class="fas fa-unlock"></i> 로그인</button>
+        <p id="error-msg"></p>
+    </div>
+    <div id="dashboard" style="display: none;">
+        <h2>대시보드</h2>
+        <p id="greeting" style="font-size: 18px; color: #e17055;"></p>
+        <div class="widget">
+            <h3>노트</h3>
+            <textarea id="notes" placeholder="여기에 노트를 작성하세요..."></textarea>
+            <button id="save-notes">저장</button>
+        </div>
+        <div class="widget">
+            <h3>링크</h3>
+            <input type="text" id="link-input" placeholder="링크 추가">
+            <button id="add-link">추가</button>
+            <ul id="links-list"></ul>
+        </div>
+        <button id="logout-btn">로그아웃</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
