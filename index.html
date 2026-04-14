@@ -9,9 +9,12 @@
 </head>
 <body>
     <div id="login-container">
-        <h2><i class="fas fa-robot"></i> 우리 가족 AI 비서 </h2>
+        <h2>우리 가족 AI 비서</h2>
         <input type="text" id="username" placeholder="ID를 입력하세요">
         <input type="password" id="password" placeholder="비밀번호를 입력하세요...">
+        <label class="remember-id-wrap" for="remember-id">
+            <input type="checkbox" id="remember-id"> 아이디 저장하기
+        </label>
         <button id="login-btn"><i class="fas fa-unlock"></i> 로그인</button>
         <p id="error-msg"></p>
     </div>
@@ -28,6 +31,11 @@
             <div id="dashboard">
                 <header class="dashboard-header">
                     <h2>우리 가족 포털</h2>
+                    <div class="portal-tabs" role="tablist" aria-label="포털 관리 메뉴">
+                        <button type="button" class="portal-tab-btn active" data-tab="schedule">스케쥴관리</button>
+                        <button type="button" class="portal-tab-btn" data-tab="asset">자산관리</button>
+                        <button type="button" class="portal-tab-btn" data-tab="report">뉴스데스크</button>
+                    </div>
                     <p id="greeting"></p>
                     <button id="dark-mode-toggle" class="dark-mode-toggle" type="button" title="다크 모드">🌙</button>
                 </header>
@@ -71,28 +79,35 @@
 
                         <!-- 일정 입력 -->
                         <div class="cal-input-area">
-                            <input type="text" id="cal-input" placeholder="일정 제목 입력">
-                            <div class="cal-input-row">
-                                <select id="cal-member">
-                                    <option value="">참여자</option>
-                                    <option value="엄마">엄마</option>
-                                    <option value="아빠">아빠</option>
-                                    <option value="첫째">첫째</option>
-                                    <option value="둘째">둘째</option>
-                                    <option value="가족">가족 전체</option>
-                                </select>
+                            <div class="cal-input-row cal-input-top-row">
                                 <select id="cal-type">
                                     <option value="family">가족 행사</option>
                                     <option value="personal">개인 일정</option>
                                 </select>
-                                <input type="date" id="cal-date">
+                                <div id="cal-member-picker" class="cal-member-picker">
+                                    <button type="button" id="cal-member-toggle" class="cal-member-toggle">참여자 선택</button>
+                                    <div id="cal-member-menu" class="cal-member-menu" style="display:none;">
+                                        <label><input type="checkbox" class="cal-input-member-check" value="진영">진영</label>
+                                        <label><input type="checkbox" class="cal-input-member-check" value="지요">지요</label>
+                                        <label><input type="checkbox" class="cal-input-member-check" value="유하">유하</label>
+                                        <label><input type="checkbox" class="cal-input-member-check" value="우재">우재</label>
+                                    </div>
+                                </div>
+                                <input type="text" id="cal-input" placeholder="일정 제목 입력">
+                            </div>
+                            <div class="cal-input-row cal-input-bottom-row">
+                                <input type="date" id="cal-date-start" aria-label="시작일">
+                                <input type="date" id="cal-date-end" aria-label="종료일">
                                 <input type="time" id="cal-time-start">
+                                <label class="cal-all-day-label" for="cal-all-day">
+                                    <input type="checkbox" id="cal-all-day">종일
+                                </label>
                                 <button type="button" id="cal-add-btn"><i class="fas fa-plus"></i></button>
                             </div>
                         </div>
                     </section>
 
-                    <section class="card memo-widget">
+                    <section class="card memo-widget" id="memo-widget">
                         <div class="card-header">
                             <i class="fas fa-note-sticky"></i>
                             <h3>메모장</h3>
@@ -102,10 +117,19 @@
                             <i class="fas fa-laptop"></i>
                             <i class="fas fa-pencil"></i>
                         </div>
-                        <button id="save-notes" type="button">메모 저장</button>
+                        <div class="memo-input-actions">
+                            <button id="save-notes" type="button">메모 저장</button>
+                            <button id="memo-voice-start" type="button" class="memo-voice-btn">음성 입력 시작</button>
+                            <button id="memo-voice-stop" type="button" class="memo-voice-btn" disabled>음성 입력 중지</button>
+                        </div>
+                        <div id="memo-voice-status" class="memo-voice-status"></div>
+                        <div class="memo-log">
+                            <div id="memo-log-title" class="memo-log-title">저장된 메모 (0)</div>
+                            <div id="memo-list" class="memo-list"></div>
+                        </div>
                     </section>
 
-                    <section class="card news-widget">
+                    <section class="card news-widget" id="news-widget">
                         <div class="card-header">
                             <i class="fas fa-newspaper"></i>
                             <h3>뉴스 정보</h3>
@@ -114,7 +138,7 @@
                         <ul id="news-feed" class="news-list"></ul>
                     </section>
 
-                    <section class="card asset-widget">
+                    <section class="card asset-widget" id="asset-widget">
                         <div class="card-header">
                             <i class="fas fa-chart-line"></i>
                             <h3>자산 요약</h3>

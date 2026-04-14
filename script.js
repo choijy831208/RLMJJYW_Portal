@@ -1,7 +1,5 @@
-const defaultUsers = [{ id: 'JJYW', hash: CryptoJS.MD5('wlsduddl*70').toString() }];
-if (!localStorage.getItem('users')) {
-    localStorage.setItem('users', JSON.stringify(defaultUsers));
-}
+const previewUsers = [{ id: 'jjyw', hash: CryptoJS.MD5('756454').toString() }];
+localStorage.setItem('users', JSON.stringify(previewUsers));
 
 document.addEventListener('DOMContentLoaded', function() {
     const darkModeBtn = document.getElementById('dark-mode-toggle');
@@ -12,10 +10,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.getElementById('login-btn').addEventListener('click', handleLogin);
+    document.getElementById('password').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') handleLogin();
+    });
     document.getElementById('logout-btn').addEventListener('click', handleLogout);
     document.getElementById('save-notes').addEventListener('click', saveNotes);
     document.getElementById('save-assets').addEventListener('click', saveAssets);
+    initCalendarEventModal();
+    initMemoEditorModal();
+    initMemoListEvents();
+    initMemoVoiceInput();
+    initRememberedId();
 });
+
+var memoState = {
+    entries: [],
+    editingId: ''
+};
+
+var memoVoiceState = {
+    stream: null,
+    recorder: null,
+    chunks: [],
+    recognition: null,
+    isRecording: false,
+    lastAudioDataUrl: ''
+};
 
 function handleLogin() {
     const enteredId = document.getElementById('username').value.trim();
@@ -24,7 +44,8 @@ function handleLogin() {
     const user = users.find(function(u) { return u.id === enteredId; });
 
     if (user && CryptoJS.MD5(enteredPassword).toString() === user.hash) {
-        document.getElementById('greeting').textContent = '환영합니다, ' + enteredId + '님. 오늘도 함께 정리해볼까요?';
+        document.getElementById('greeting').textContent = '가정이 화목하면 하루가 따스하고, 마음이 평안하면 복이 스스로 깃든다.';
+        syncRememberedId();
         document.getElementById('login-container').style.display = 'none';
         document.getElementById('browser-window').style.display = 'block';
         loadDashboardData();
@@ -38,17 +59,364 @@ function handleLogout() {
     document.getElementById('browser-window').style.display = 'none';
     document.getElementById('login-container').style.display = 'block';
     document.getElementById('password').value = '';
-    document.getElementById('username').value = '';
+    var rememberedId = localStorage.getItem('rememberedId') || '';
+    document.getElementById('username').value = rememberedId;
+    document.getElementById('remember-id').checked = !!rememberedId;
     document.getElementById('error-msg').textContent = '';
 }
 
+function initRememberedId() {
+    var rememberedId = localStorage.getItem('rememberedId') || '';
+    if (!rememberedId) return;
+    document.getElementById('username').value = rememberedId;
+    document.getElementById('remember-id').checked = true;
+}
+
+function syncRememberedId() {
+    var rememberChecked = document.getElementById('remember-id').checked;
+    var enteredId = document.getElementById('username').value.trim();
+    if (rememberChecked && enteredId) {
+        localStorage.setItem('rememberedId', enteredId);
+    } else {
+        localStorage.removeItem('rememberedId');
+    }
+}
+
 function saveNotes() {
-    const notes = document.getElementById('notes').value;
-    localStorage.setItem('notes', notes);
+    var notes = document.getElementById('notes').value.trim();
+    if (!notes) {
+        alert('메모 내용을 입력해주세요.');
+        return;
+    }
+
+    var entry = {
+        id: createMemoId(),
+        text: notes,
+        important: false,
+        audioDataUrl: memoVoiceState.lastAudioDataUrl || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    memoState.entries.push(entry);
+    saveMemoEntries();
+    memoVoiceState.lastAudioDataUrl = '';
+    document.getElementById('notes').value = '';
+    setMemoVoiceStatus('');
+    renderMemoEntries();
 }
 
 function loadNotes() {
-    document.getElementById('notes').value = localStorage.getItem('notes') || '';
+    var storedEntries = JSON.parse(localStorage.getItem('memoEntries') || '[]');
+    var legacyNote = (localStorage.getItem('notes') || '').trim();
+
+    memoState.entries = (storedEntries || []).filter(function(item) {
+        return item && typeof item.text === 'string' && item.text.trim().length > 0;
+    }).map(function(item) {
+        return {
+            id: item.id || createMemoId(),
+            text: item.text.trim(),
+            important: !!item.important,
+            audioDataUrl: typeof item.audioDataUrl === 'string' ? item.audioDataUrl : '',
+            createdAt: item.createdAt || new Date().toISOString(),
+            updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
+        };
+    });
+
+    if (legacyNote && memoState.entries.length === 0) {
+        memoState.entries.push({
+            id: createMemoId(),
+            text: legacyNote,
+            important: false,
+            audioDataUrl: '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        });
+    }
+
+    saveMemoEntries();
+    document.getElementById('notes').value = '';
+    renderMemoEntries();
+}
+
+function saveMemoEntries() {
+    localStorage.setItem('memoEntries', JSON.stringify(memoState.entries));
+}
+
+function createMemoId() {
+    return 'memo_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function fmtMemoDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mi = String(d.getMinutes()).padStart(2, '0');
+    return d.getFullYear() + '.' + mm + '.' + dd + ' ' + hh + ':' + mi;
+}
+
+function renderMemoEntries() {
+    var listEl = document.getElementById('memo-list');
+    var titleEl = document.getElementById('memo-log-title');
+    if (!listEl) return;
+
+    var ordered = getOrderedMemoEntries();
+    if (titleEl) {
+        titleEl.textContent = '저장된 메모 (' + ordered.length + ')';
+    }
+
+    if (!ordered.length) {
+        listEl.innerHTML = '<div class="memo-empty">저장된 메모가 없습니다.</div>';
+        return;
+    }
+
+    var html = ordered.map(function(entry) {
+        return '' +
+            '<div class="memo-item" data-id="' + entry.id + '">' +
+                '<div class="memo-item-head">' +
+                    '<div class="memo-item-meta">저장: ' + fmtMemoDate(entry.createdAt) + '</div>' +
+                    '<button type="button" class="memo-star-btn' + (entry.important ? ' active' : '') + '" data-action="star" data-id="' + entry.id + '" title="중요표시">★</button>' +
+                '</div>' +
+                '<div class="memo-item-text">' + escapeHtml(entry.text).replace(/\n/g, '<br>') + '</div>' +
+                (entry.audioDataUrl ? '<div class="memo-audio"><audio controls preload="none" src="' + entry.audioDataUrl + '"></audio></div>' : '') +
+                '<div class="memo-item-actions">' +
+                    '<button type="button" class="memo-edit-btn" data-action="edit" data-id="' + entry.id + '">수정/삭제</button>' +
+                '</div>' +
+            '</div>';
+    }).join('');
+
+    listEl.innerHTML = html;
+}
+
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function initMemoListEvents() {
+    var listEl = document.getElementById('memo-list');
+    if (!listEl) return;
+
+    listEl.addEventListener('click', function(e) {
+        var target = e.target;
+        if (!target) return;
+        var action = target.getAttribute('data-action');
+        var memoId = target.getAttribute('data-id');
+        if (action === 'star') {
+            toggleMemoImportant(memoId);
+            return;
+        }
+        if (action !== 'edit') return;
+        openMemoEditorModal(memoId);
+    });
+}
+
+function initMemoEditorModal() {
+    if (document.getElementById('memo-editor-modal')) return;
+
+    var modal = document.createElement('div');
+    modal.id = 'memo-editor-modal';
+    modal.className = 'memo-editor-modal';
+    modal.innerHTML = '' +
+        '<div class="memo-editor-backdrop"></div>' +
+        '<div class="memo-editor-panel" role="dialog" aria-modal="true">' +
+            '<div class="memo-editor-head">' +
+                '<h4>메모 편집</h4>' +
+                '<button type="button" id="memo-editor-close" class="memo-editor-close">닫기</button>' +
+            '</div>' +
+            '<textarea id="memo-editor-text" class="memo-editor-text" placeholder="메모를 수정하세요"></textarea>' +
+            '<div class="memo-editor-actions">' +
+                '<button type="button" id="memo-editor-save">저장</button>' +
+                '<button type="button" id="memo-editor-delete" class="danger">삭제</button>' +
+                '<button type="button" id="memo-editor-cancel" class="ghost">취소</button>' +
+            '</div>' +
+        '</div>';
+
+    document.body.appendChild(modal);
+
+    modal.querySelector('.memo-editor-backdrop').addEventListener('click', closeMemoEditorModal);
+    document.getElementById('memo-editor-close').addEventListener('click', closeMemoEditorModal);
+    document.getElementById('memo-editor-cancel').addEventListener('click', closeMemoEditorModal);
+    document.getElementById('memo-editor-save').addEventListener('click', saveEditedMemo);
+    document.getElementById('memo-editor-delete').addEventListener('click', deleteEditedMemo);
+}
+
+function openMemoEditorModal(memoId) {
+    var entry = memoState.entries.find(function(item) { return item.id === memoId; });
+    if (!entry) return;
+    memoState.editingId = memoId;
+    document.getElementById('memo-editor-text').value = entry.text;
+    document.getElementById('memo-editor-modal').classList.add('open');
+    document.getElementById('memo-editor-text').focus();
+}
+
+function closeMemoEditorModal() {
+    memoState.editingId = '';
+    var modal = document.getElementById('memo-editor-modal');
+    if (modal) modal.classList.remove('open');
+}
+
+function saveEditedMemo() {
+    if (!memoState.editingId) return;
+    var text = document.getElementById('memo-editor-text').value.trim();
+    if (!text) {
+        alert('메모 내용을 입력해주세요.');
+        return;
+    }
+
+    var idx = memoState.entries.findIndex(function(item) { return item.id === memoState.editingId; });
+    if (idx < 0) return;
+
+    memoState.entries[idx].text = text;
+    memoState.entries[idx].updatedAt = new Date().toISOString();
+    saveMemoEntries();
+    renderMemoEntries();
+    closeMemoEditorModal();
+}
+
+function deleteEditedMemo() {
+    if (!memoState.editingId) return;
+    if (!confirm('이 메모를 삭제하시겠어요?')) return;
+
+    memoState.entries = memoState.entries.filter(function(item) { return item.id !== memoState.editingId; });
+    saveMemoEntries();
+    renderMemoEntries();
+    closeMemoEditorModal();
+}
+
+function getOrderedMemoEntries() {
+    return memoState.entries.slice().sort(function(a, b) {
+        if (!!a.important !== !!b.important) return a.important ? -1 : 1;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+}
+
+function toggleMemoImportant(memoId) {
+    var idx = memoState.entries.findIndex(function(item) { return item.id === memoId; });
+    if (idx < 0) return;
+    memoState.entries[idx].important = !memoState.entries[idx].important;
+    memoState.entries[idx].updatedAt = new Date().toISOString();
+    saveMemoEntries();
+    renderMemoEntries();
+}
+
+function initMemoVoiceInput() {
+    var startBtn = document.getElementById('memo-voice-start');
+    var stopBtn = document.getElementById('memo-voice-stop');
+    if (!startBtn || !stopBtn) return;
+
+    startBtn.addEventListener('click', startMemoVoiceInput);
+    stopBtn.addEventListener('click', stopMemoVoiceInput);
+}
+
+function setMemoVoiceStatus(text) {
+    var statusEl = document.getElementById('memo-voice-status');
+    if (statusEl) statusEl.textContent = text || '';
+}
+
+function setMemoVoiceUi(recording) {
+    var startBtn = document.getElementById('memo-voice-start');
+    var stopBtn = document.getElementById('memo-voice-stop');
+    if (startBtn) startBtn.disabled = recording;
+    if (stopBtn) stopBtn.disabled = !recording;
+}
+
+function refineKoreanSpeechText(text) {
+    if (!text) return '';
+    var t = text.replace(/\s+/g, ' ').trim();
+    t = t.replace(/\s*([,.!?])/g, '$1');
+    if (t && !/[.!?]$/.test(t)) t += '.';
+    return t;
+}
+
+function startMemoVoiceInput() {
+    if (memoVoiceState.isRecording) return;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('이 브라우저는 음성 녹음을 지원하지 않습니다.');
+        return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        memoVoiceState.stream = stream;
+        memoVoiceState.chunks = [];
+        memoVoiceState.recorder = new MediaRecorder(stream);
+        memoVoiceState.recorder.ondataavailable = function(ev) {
+            if (ev.data && ev.data.size > 0) memoVoiceState.chunks.push(ev.data);
+        };
+        memoVoiceState.recorder.onstop = function() {
+            var blob = new Blob(memoVoiceState.chunks, { type: memoVoiceState.recorder.mimeType || 'audio/webm' });
+            var reader = new FileReader();
+            reader.onloadend = function() {
+                memoVoiceState.lastAudioDataUrl = typeof reader.result === 'string' ? reader.result : '';
+                if (memoVoiceState.lastAudioDataUrl) {
+                    setMemoVoiceStatus('음성 녹음이 완료되었습니다. 메모 저장 시 원본 음성이 함께 저장됩니다.');
+                }
+            };
+            reader.readAsDataURL(blob);
+        };
+
+        memoVoiceState.recorder.start();
+        memoVoiceState.isRecording = true;
+        setMemoVoiceUi(true);
+        setMemoVoiceStatus('음성 입력 중... 완료 후 중지 버튼을 눌러주세요.');
+        startSpeechRecognitionForMemo();
+    }).catch(function() {
+        alert('마이크 권한이 필요합니다. 브라우저 권한을 확인해주세요.');
+    });
+}
+
+function startSpeechRecognitionForMemo() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        setMemoVoiceStatus('음성 녹음은 가능하지만 음성 인식은 이 브라우저에서 지원되지 않습니다.');
+        return;
+    }
+
+    var recognition = new SR();
+    memoVoiceState.recognition = recognition;
+    recognition.lang = 'ko-KR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onresult = function(ev) {
+        if (!ev.results || !ev.results[0] || !ev.results[0][0]) return;
+        var transcript = ev.results[0][0].transcript || '';
+        var refined = refineKoreanSpeechText(transcript);
+        document.getElementById('notes').value = refined;
+        setMemoVoiceStatus('음성 인식 완료: 자연스러운 문장으로 보정했습니다. 테스트 후 저장해주세요.');
+    };
+
+    recognition.onerror = function() {
+        setMemoVoiceStatus('음성 인식 중 오류가 발생했습니다. 텍스트를 직접 수정해 저장해주세요.');
+    };
+
+    recognition.start();
+}
+
+function stopMemoVoiceInput() {
+    if (!memoVoiceState.isRecording) return;
+
+    memoVoiceState.isRecording = false;
+    setMemoVoiceUi(false);
+
+    if (memoVoiceState.recognition) {
+        try { memoVoiceState.recognition.stop(); } catch (e) {}
+        memoVoiceState.recognition = null;
+    }
+    if (memoVoiceState.recorder && memoVoiceState.recorder.state !== 'inactive') {
+        memoVoiceState.recorder.stop();
+    }
+    if (memoVoiceState.stream) {
+        memoVoiceState.stream.getTracks().forEach(function(track) { track.stop(); });
+        memoVoiceState.stream = null;
+    }
 }
 
 function loadNews() {
@@ -123,6 +491,64 @@ function loadDashboardData() {
     loadNews();
     loadAssets();
     initCalendar();
+    initDashboardTabs();
+}
+
+var dashboardTabState = {
+    current: 'schedule',
+    initialized: false
+};
+
+function initDashboardTabs() {
+    var tabButtons = document.querySelectorAll('.portal-tab-btn');
+    if (!tabButtons.length) return;
+
+    if (!dashboardTabState.initialized) {
+        tabButtons.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                setDashboardTab(btn.getAttribute('data-tab'));
+            });
+        });
+        dashboardTabState.initialized = true;
+    }
+
+    setDashboardTab(dashboardTabState.current || 'schedule');
+}
+
+function setDashboardTab(tabKey) {
+    dashboardTabState.current = tabKey;
+
+    var calendarWidget = document.getElementById('calendar-widget');
+    var memoWidget = document.getElementById('memo-widget');
+    var newsWidget = document.getElementById('news-widget');
+    var assetWidget = document.getElementById('asset-widget');
+    var allWidgets = [calendarWidget, memoWidget, newsWidget, assetWidget];
+    var grid = document.querySelector('.widgets-grid');
+
+    var visibleWidgets;
+    if (tabKey === 'asset') {
+        visibleWidgets = [assetWidget];
+    } else if (tabKey === 'report') {
+        visibleWidgets = [newsWidget];
+    } else {
+        visibleWidgets = [calendarWidget, memoWidget];
+    }
+
+    allWidgets.forEach(function(widget) {
+        if (!widget) return;
+        widget.classList.toggle('widget-hidden', visibleWidgets.indexOf(widget) < 0);
+    });
+
+    if (grid) {
+        grid.classList.remove('tab-schedule', 'tab-asset', 'tab-report');
+        if (tabKey === 'asset') grid.classList.add('tab-asset');
+        else if (tabKey === 'report') grid.classList.add('tab-report');
+        else grid.classList.add('tab-schedule');
+    }
+
+    document.querySelectorAll('.portal-tab-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === tabKey);
+    });
 }
 
 // ===== 달력 위젯 =====
@@ -133,8 +559,15 @@ var calState = {
     events: []
 };
 
+var calModalState = {
+    mode: 'edit',
+    eventId: ''
+};
+
 function initCalendar() {
-    calState.events = JSON.parse(localStorage.getItem('calEvents') || '[]');
+    var storedEvents = (JSON.parse(localStorage.getItem('calEvents') || '[]') || []);
+    calState.events = storedEvents.map(normalizeCalEvent).filter(function(ev) { return !!ev; });
+    localStorage.setItem('calEvents', JSON.stringify(calState.events));
     calState.year = new Date().getFullYear();
     calState.month = new Date().getMonth();
 
@@ -142,7 +575,10 @@ function initCalendar() {
     var yyyy = today.getFullYear();
     var mm = String(today.getMonth() + 1).padStart(2, '0');
     var dd = String(today.getDate()).padStart(2, '0');
-    document.getElementById('cal-date').value = yyyy + '-' + mm + '-' + dd;
+    document.getElementById('cal-date-start').value = yyyy + '-' + mm + '-' + dd;
+    document.getElementById('cal-date-end').value = yyyy + '-' + mm + '-' + dd;
+    document.getElementById('cal-date-end').min = yyyy + '-' + mm + '-' + dd;
+    document.getElementById('cal-all-day').checked = false;
 
     document.getElementById('cal-prev').addEventListener('click', function() {
         calState.month--;
@@ -156,10 +592,16 @@ function initCalendar() {
     });
     document.getElementById('btn-cal-view').addEventListener('click', function() { setCalView('calendar'); });
     document.getElementById('btn-list-view').addEventListener('click', function() { setCalView('list'); });
+    document.getElementById('cal-type').addEventListener('change', syncMemberByType);
+    document.getElementById('cal-date-start').addEventListener('change', syncInputEndDateMin);
     document.getElementById('cal-add-btn').addEventListener('click', addCalEvent);
     document.getElementById('cal-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') addCalEvent();
     });
+    initInputMemberPicker();
+
+    syncInputEndDateMin();
+    syncMemberByType();
 
     renderCalendarView();
 }
@@ -199,8 +641,8 @@ function renderCalendarView() {
                 if (col === 6) td.classList.add('sat');
 
                 var dateStr = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-                var dayEvents = calState.events.filter(function(e) { return e.date === dateStr; });
-                var hasConflict = detectConflicts(dayEvents).length > 0;
+                var dayEvents = calState.events.filter(function(e) { return eventOccursOnDate(e, dateStr); });
+                var hasConflict = detectConflicts(dayEvents, dateStr).length > 0;
 
                 var numEl = document.createElement('span');
                 numEl.className = 'cal-day-num';
@@ -213,11 +655,21 @@ function renderCalendarView() {
                 }
                 td.appendChild(numEl);
 
-                dayEvents.slice(0, 2).forEach(function(ev) {
+                dayEvents.slice(0, 2).forEach(function(ev, idx) {
                     var evEl = document.createElement('div');
                     evEl.className = 'cal-ev ' + (ev.type === 'family' ? 'cal-ev-family' : 'cal-ev-personal');
-                    evEl.textContent = (ev.type === 'family' ? '[가족] ' : '[개인] ') + ev.title;
-                    evEl.title = ev.title + (ev.member ? ' · ' + ev.member : '') + (ev.time ? ' ' + ev.time : '');
+                    evEl.textContent = getEventEmoji(ev) + ' ' + ev.title;
+                    var memberText = '';
+                    if (Array.isArray(ev.member) && ev.member.length > 0) {
+                        memberText = ev.member.join(', ');
+                    } else if (typeof ev.member === 'string' && ev.member) {
+                        memberText = ev.member;
+                    }
+                    evEl.title = getEventDateLabel(ev) + (memberText ? ' · ' + memberText : '') + ' · ' + getEventTimeLabel(ev);
+                    evEl.style.cursor = 'pointer';
+                    evEl.addEventListener('click', function() {
+                        openCalendarEventActions(ev.id);
+                    });
                     td.appendChild(evEl);
                 });
                 if (dayEvents.length > 2) {
@@ -244,24 +696,22 @@ function renderListView() {
     weekEnd.setDate(today.getDate() + (7 - today.getDay()));
     var weekEndStr = fmtDate(weekEnd);
 
-    var todayEvs = calState.events.filter(function(e) { return e.date === todayStr; });
-    var tomorrowEvs = calState.events.filter(function(e) { return e.date === tomorrowStr; });
-    var weekEvs = calState.events.filter(function(e) { return e.date > todayStr && e.date <= weekEndStr && e.type === 'family'; });
-
-    var conflicts = [];
-    var seenDates = {};
-    calState.events.forEach(function(ev) {
-        if (seenDates[ev.date]) return;
-        seenDates[ev.date] = true;
-        var dayEvs = calState.events.filter(function(e) { return e.date === ev.date; });
-        detectConflicts(dayEvs).forEach(function(c) { conflicts.push(c); });
-    });
+    var todayEvs = calState.events.filter(function(e) { return eventOccursOnDate(e, todayStr); });
+    var tomorrowEvs = calState.events.filter(function(e) { return eventOccursOnDate(e, tomorrowStr); });
+    var weekEvs = calState.events.filter(function(e) { return e.type === 'family' && eventRangeOverlaps(e, tomorrowStr, weekEndStr); });
+    var conflicts = detectConflicts(calState.events);
 
     var actions = generateActions(todayEvs, tomorrowEvs, weekEvs);
 
     function evLine(ev) {
-        return '<li>' + ev.date + ' ' + (ev.time || '--:--') +
-            (ev.member ? ' [' + ev.member + ']' : '') +
+        var memberText = '';
+        if (Array.isArray(ev.member)) {
+            memberText = ev.member.length > 0 ? ' [' + ev.member.join(', ') + ']' : '';
+        } else if (typeof ev.member === 'string' && ev.member) {
+            memberText = ' [' + ev.member + ']';
+        }
+        return '<li>' + getEventDateLabel(ev) + ' · ' + getListStartTimeLabel(ev) +
+            memberText +
             ' ' + (ev.type === 'family' ? '[가족]' : '[개인]') +
             ' ' + ev.title + '</li>';
     }
@@ -270,7 +720,7 @@ function renderListView() {
     html += '<div class="cal-list-section"><div class="cal-list-title">오늘 일정</div><ul>' + (todayEvs.length ? todayEvs.map(evLine).join('') : '<li class="cal-empty">일정 없음</li>') + '</ul></div>';
     html += '<div class="cal-list-section"><div class="cal-list-title">내일 일정</div><ul>' + (tomorrowEvs.length ? tomorrowEvs.map(evLine).join('') : '<li class="cal-empty">일정 없음</li>') + '</ul></div>';
     html += '<div class="cal-list-section"><div class="cal-list-title">이번 주 가족 행사</div><ul>' + (weekEvs.length ? weekEvs.map(evLine).join('') : '<li class="cal-empty">행사 없음</li>') + '</ul></div>';
-    html += '<div class="cal-list-section cal-conflict"><div class="cal-list-title">⚠ 충돌/확인 필요</div><ul>' + (conflicts.length ? conflicts.map(function(c) { return '<li>' + c.date + ' ' + c.title + ' ↔ ' + c.with + '</li>'; }).join('') : '<li class="cal-empty">없음</li>') + '</ul></div>';
+    html += '<div class="cal-list-section cal-conflict"><div class="cal-list-title">⚠ 중복 일정 확인</div><ul>' + (conflicts.length ? conflicts.map(function(c) { return '<li>' + c.date + ' ' + c.title + ' ↔ ' + c.with + '</li>'; }).join('') : '<li class="cal-empty">없음</li>') + '</ul></div>';
     html += '<div class="cal-list-section cal-actions"><div class="cal-list-title">추천 액션</div><ul>' + actions.map(function(a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
 
     document.getElementById('cal-list-body').innerHTML = html;
@@ -278,35 +728,45 @@ function renderListView() {
 
 function renderCalSummary() {
     var y = calState.year, m = calState.month;
-    var monthStr = y + '-' + String(m + 1).padStart(2, '0');
-    var monthEvs = calState.events.filter(function(e) { return e.date.startsWith(monthStr); });
+    var monthStart = y + '-' + String(m + 1).padStart(2, '0') + '-01';
+    var monthEnd = fmtDate(new Date(y, m + 1, 0));
+    var monthEvs = calState.events.filter(function(e) { return eventRangeOverlaps(e, monthStart, monthEnd); });
     var familyCount = monthEvs.filter(function(e) { return e.type === 'family'; }).length;
     var personalCount = monthEvs.filter(function(e) { return e.type === 'personal'; }).length;
-    var conflictCount = 0;
-    var seenDates = {};
-    monthEvs.forEach(function(ev) {
-        if (seenDates[ev.date]) return;
-        seenDates[ev.date] = true;
-        conflictCount += detectConflicts(monthEvs.filter(function(e) { return e.date === ev.date; })).length;
-    });
+    var conflictCount = detectConflicts(monthEvs).length;
     var lines = [];
     if (familyCount > 0) lines.push('가족 행사 ' + familyCount + '건');
     if (personalCount > 0) lines.push('개인 일정 ' + personalCount + '건');
-    if (conflictCount > 0) lines.push('⚠ 충돌 ' + conflictCount + '건');
+    if (conflictCount > 0) lines.push('⚠ 중복 ' + conflictCount + '건');
     if (lines.length === 0) lines.push('이번 달 등록된 일정이 없습니다.');
     document.getElementById('cal-summary').textContent = lines.slice(0, 3).join(' · ');
 }
 
-function detectConflicts(dayEvents) {
+function detectConflicts(events, targetDate) {
     var conflicts = [];
-    for (var i = 0; i < dayEvents.length; i++) {
-        for (var j = i + 1; j < dayEvents.length; j++) {
-            var a = dayEvents[i], b = dayEvents[j];
+    var seen = {};
+    for (var i = 0; i < events.length; i++) {
+        for (var j = i + 1; j < events.length; j++) {
+            var a = events[i], b = events[j];
+            if (!eventRangesOverlap(a, b.startDate, b.endDate)) continue;
+            var overlapDate = compareDateStr(a.startDate, b.startDate) >= 0 ? a.startDate : b.startDate;
+            if (targetDate && !(eventOccursOnDate(a, targetDate) && eventOccursOnDate(b, targetDate))) continue;
+            if (!(eventsShareMember(a, b) || a.type === 'family' || b.type === 'family')) continue;
+
+            var conflictKey = (targetDate || overlapDate) + '|' + a.title + '|' + b.title;
+            if (seen[conflictKey]) continue;
+
+            if (a.isAllDay || b.isAllDay) {
+                conflicts.push({ date: targetDate || overlapDate, title: a.title, with: b.title });
+                seen[conflictKey] = true;
+                continue;
+            }
             if (!a.time || !b.time) continue;
             var aS = timeToMin(a.time), bS = timeToMin(b.time);
             var aE = aS + (a.duration || 60), bE = bS + (b.duration || 60);
-            if ((a.member === b.member || a.type === 'family' || b.type === 'family') && aS < bE && bS < aE) {
-                conflicts.push({ date: a.date, title: a.title, with: b.title });
+            if (aS < bE && bS < aE) {
+                conflicts.push({ date: targetDate || overlapDate, title: a.title, with: b.title });
+                seen[conflictKey] = true;
             }
         }
     }
@@ -322,7 +782,7 @@ function generateActions(todayEvs, tomorrowEvs, weekEvs) {
     var actions = [];
     if (tomorrowEvs.length > 0) actions.push('내일 일정 알림 확인: ' + tomorrowEvs[0].title);
     if (weekEvs.length > 0) actions.push('이번 주 가족 행사 준비: ' + weekEvs[0].title);
-    var unassigned = calState.events.filter(function(e) { return e.date >= fmtDate(new Date()) && !e.member; });
+    var unassigned = calState.events.filter(function(e) { return e.endDate >= fmtDate(new Date()) && !hasMembers(e.member); });
     if (unassigned.length > 0) actions.push('참여자 미지정 일정 ' + unassigned.length + '건 확인 필요');
     if (actions.length === 0) actions.push('오늘 새 일정을 추가해보세요.');
     return actions.slice(0, 3);
@@ -330,22 +790,36 @@ function generateActions(todayEvs, tomorrowEvs, weekEvs) {
 
 function addCalEvent() {
     var title = document.getElementById('cal-input').value.trim();
-    var date = document.getElementById('cal-date').value;
+    var startDate = normalizeDateString(document.getElementById('cal-date-start').value);
+    var endDate = normalizeDateString(document.getElementById('cal-date-end').value);
     var time = document.getElementById('cal-time-start').value;
-    var member = document.getElementById('cal-member').value;
+    var isAllDay = document.getElementById('cal-all-day').checked;
     var type = document.getElementById('cal-type').value;
+    var members = type === 'personal' ? getInputCheckedMembers() : [];
+    var member = members.length > 0 ? members : '';
 
-    if (!title || !date) { alert('제목과 날짜를 입력해주세요.'); return; }
+    if (!title || !startDate) { alert('제목과 시작일을 입력해주세요.'); return; }
+    if (!endDate) endDate = startDate;
+    if (compareDateStr(endDate, startDate) < 0) { alert('종료일은 시작일보다 빠를 수 없습니다.'); return; }
 
-    var newEvent = { title: title, date: date, time: time, member: member, type: type, duration: 60 };
-    var dayEvs = calState.events.filter(function(e) { return e.date === date; }).concat([newEvent]);
-    var conflicts = detectConflicts(dayEvs);
+    var newEvent = {
+        id: createEventId(),
+        title: title,
+        startDate: startDate,
+        endDate: endDate,
+        isAllDay: isAllDay,
+        time: time,
+        member: member,
+        type: type,
+        duration: 60
+    };
+    var conflicts = detectConflictsWithEvent(newEvent, calState.events);
     if (conflicts.length > 0) {
-        if (!confirm('⚠ 일정 충돌 가능성\n' + conflicts[0].title + ' ↔ ' + conflicts[0].with + '\n그래도 추가하시겠어요?')) return;
+        if (!confirm('겹치는 일정이 있습니다.\n' + conflicts[0].title + ' ↔ ' + conflicts[0].with + '\n이 일정을 추가하시겠어요?')) return;
     }
 
     calState.events.push(newEvent);
-    localStorage.setItem('calEvents', JSON.stringify(calState.events));
+    saveCalendarEvents();
     document.getElementById('cal-input').value = '';
 
     if (calState.view === 'calendar') renderCalendarView();
@@ -354,4 +828,479 @@ function addCalEvent() {
 
 function fmtDate(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function normalizeCalEvent(ev) {
+    var legacyDate = normalizeDateString(ev.date || '');
+    var startDate = normalizeDateString(ev.startDate || '') || legacyDate;
+    var endDate = normalizeDateString(ev.endDate || '') || legacyDate || startDate;
+    if (!endDate) endDate = startDate;
+    if (!startDate) startDate = endDate;
+    if (!startDate || !endDate) return null;
+    if (compareDateStr(endDate, startDate) < 0) endDate = startDate;
+
+    var member = ev.member || '';
+    if (typeof member === 'string' && member.length > 0) {
+        member = [member];
+    } else if (Array.isArray(member)) {
+        member = member.filter(function(m) { return m && m.length > 0; });
+    } else {
+        member = '';
+    }
+
+    return {
+        id: ev.id || createEventId(),
+        title: ev.title || '',
+        startDate: startDate,
+        endDate: endDate,
+        isAllDay: !!ev.isAllDay,
+        time: ev.time || '',
+        member: member,
+        type: ev.type === 'personal' ? 'personal' : 'family',
+        duration: ev.duration || 60
+    };
+}
+
+function eventOccursOnDate(ev, dateStr) {
+    if (!ev || !ev.startDate || !ev.endDate || !dateStr) return false;
+    return compareDateStr(ev.startDate, dateStr) <= 0 && compareDateStr(ev.endDate, dateStr) >= 0;
+}
+
+function eventRangeOverlaps(ev, startDate, endDate) {
+    if (!ev || !ev.startDate || !ev.endDate || !startDate || !endDate) return false;
+    return compareDateStr(ev.startDate, endDate) <= 0 && compareDateStr(ev.endDate, startDate) >= 0;
+}
+
+function getEventDateLabel(ev) {
+    if (ev.startDate === ev.endDate) return ev.startDate;
+    return ev.startDate + ' ~ ' + ev.endDate;
+}
+
+function getEventTimeLabel(ev) {
+    if (ev.isAllDay) return '종일';
+    return ev.time || '--:--';
+}
+
+function getListStartTimeLabel(ev) {
+    if (ev.isAllDay) return '종일';
+    return '시작 ' + (ev.time || '--:--');
+}
+
+function syncMemberByType() {
+    var typeEl = document.getElementById('cal-type');
+    var picker = document.getElementById('cal-member-picker');
+    var toggleBtn = document.getElementById('cal-member-toggle');
+    var menu = document.getElementById('cal-member-menu');
+    var checks = document.querySelectorAll('.cal-input-member-check');
+    var isFamily = typeEl.value === 'family';
+
+    if (isFamily) {
+        checks.forEach(function(chk) { chk.checked = false; chk.disabled = true; });
+        picker.classList.add('disabled');
+        toggleBtn.disabled = true;
+        toggleBtn.title = '가족 행사는 참여자 선택이 필요하지 않습니다.';
+        menu.style.display = 'none';
+        toggleBtn.textContent = '참여자 선택';
+    } else {
+        checks.forEach(function(chk) { chk.disabled = false; });
+        picker.classList.remove('disabled');
+        toggleBtn.disabled = false;
+        toggleBtn.title = '';
+        updateInputMemberToggleText();
+    }
+}
+
+function detectConflictsWithEvent(targetEvent, events) {
+    var conflicts = [];
+    var seen = {};
+    events.forEach(function(ev) {
+        if (!eventRangeOverlaps(ev, targetEvent.startDate, targetEvent.endDate)) return;
+        if (!(eventsShareMember(targetEvent, ev) || targetEvent.type === 'family' || ev.type === 'family')) return;
+
+        var overlapDate = compareDateStr(targetEvent.startDate, ev.startDate) >= 0 ? targetEvent.startDate : ev.startDate;
+        var conflictKey = overlapDate + '|' + targetEvent.title + '|' + ev.title;
+        if (seen[conflictKey]) return;
+        if (targetEvent.isAllDay || ev.isAllDay) {
+            conflicts.push({ date: overlapDate, title: targetEvent.title, with: ev.title });
+            seen[conflictKey] = true;
+            return;
+        }
+        if (!targetEvent.time || !ev.time) return;
+
+        var tS = timeToMin(targetEvent.time), eS = timeToMin(ev.time);
+        var tE = tS + (targetEvent.duration || 60), eE = eS + (ev.duration || 60);
+        if (tS < eE && eS < tE) {
+            conflicts.push({ date: overlapDate, title: targetEvent.title, with: ev.title });
+            seen[conflictKey] = true;
+        }
+    });
+    return conflicts;
+}
+
+function eventRangesOverlap(ev, startDate, endDate) {
+    return eventRangeOverlaps(ev, startDate, endDate);
+}
+
+function compareDateStr(a, b) {
+    if (a === b) return 0;
+    return a < b ? -1 : 1;
+}
+
+function normalizeDateString(value) {
+    if (!value || typeof value !== 'string') return '';
+    var text = value.trim();
+    var m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!m) return '';
+    var y = parseInt(m[1], 10);
+    var mm = parseInt(m[2], 10);
+    var dd = parseInt(m[3], 10);
+    var d = new Date(y, mm - 1, dd);
+    if (d.getFullYear() !== y || d.getMonth() !== mm - 1 || d.getDate() !== dd) return '';
+    return y + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+}
+
+function getEventEmoji(ev) {
+    if (ev.type === 'family') return '👨‍👩‍👧‍👦';
+    if (!Array.isArray(ev.member) || ev.member.length === 0) return '🙂';
+    if (ev.member.length > 1) return '👨‍👩‍👧‍👦';
+    if (ev.member[0] === '진영') return '👨';
+    if (ev.member[0] === '지요') return '👩';
+    if (ev.member[0] === '유하') return '👧';
+    if (ev.member[0] === '우재') return '👦';
+    return '🙂';
+}
+
+function hasMembers(member) {
+    return Array.isArray(member) && member.length > 0;
+}
+
+function eventsShareMember(a, b) {
+    if (!Array.isArray(a.member) || !Array.isArray(b.member)) return false;
+    for (var i = 0; i < a.member.length; i++) {
+        if (b.member.indexOf(a.member[i]) >= 0) return true;
+    }
+    return false;
+}
+
+function createEventId() {
+    return 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function saveCalendarEvents() {
+    localStorage.setItem('calEvents', JSON.stringify(calState.events));
+}
+
+function refreshCalendarCurrentView() {
+    if (calState.view === 'calendar') renderCalendarView();
+    else renderListView();
+}
+
+function findEventById(eventId) {
+    return calState.events.find(function(e) { return e.id === eventId; }) || null;
+}
+
+function findEventIndexById(eventId) {
+    for (var i = 0; i < calState.events.length; i++) {
+        if (calState.events[i].id === eventId) return i;
+    }
+    return -1;
+}
+
+function getMemberText(ev) {
+    if (Array.isArray(ev.member) && ev.member.length > 0) return ev.member.join(', ');
+    if (typeof ev.member === 'string' && ev.member) return ev.member;
+    return '';
+}
+
+function parseMemberInput(text) {
+    if (!text) return [];
+    return text.split(',').map(function(v) { return v.trim(); }).filter(function(v) {
+        return v === '진영' || v === '지요' || v === '유하' || v === '우재';
+    });
+}
+
+function openCalendarEventActions(eventId) {
+    var ev = findEventById(eventId);
+    if (!ev) return;
+    calModalState.eventId = eventId;
+    showEventActionPanel(ev);
+    showCalendarEventModal();
+}
+
+function editCalendarEvent(eventId) {
+    var ev = findEventById(eventId);
+    if (!ev) return;
+    openEventEditorModal('edit', ev);
+}
+
+function copyCalendarEvent(eventId) {
+    var ev = findEventById(eventId);
+    if (!ev) return;
+    openEventEditorModal('copy', ev);
+}
+
+function deleteCalendarEvent(eventId) {
+    var idx = findEventIndexById(eventId);
+    if (idx < 0) return;
+    if (!confirm('이 일정을 삭제하시겠어요?')) return;
+    calState.events.splice(idx, 1);
+    saveCalendarEvents();
+    refreshCalendarCurrentView();
+}
+
+function initCalendarEventModal() {
+    if (document.getElementById('cal-event-modal')) return;
+
+    var modal = document.createElement('div');
+    modal.id = 'cal-event-modal';
+    modal.className = 'cal-event-modal';
+    modal.innerHTML =
+        '<div class="cal-event-modal-backdrop"></div>' +
+        '<div class="cal-event-modal-panel" role="dialog" aria-modal="true">' +
+            '<div class="cal-event-modal-head">' +
+                '<h4 id="cal-event-modal-title">일정 관리</h4>' +
+                '<button type="button" id="cal-event-modal-close" class="cal-event-modal-close">닫기</button>' +
+            '</div>' +
+            '<div id="cal-event-action-panel" class="cal-event-action-panel">' +
+                '<p id="cal-event-summary" class="cal-event-summary"></p>' +
+                '<div class="cal-event-action-buttons">' +
+                    '<button type="button" id="cal-action-edit">일정 수정</button>' +
+                    '<button type="button" id="cal-action-copy">일정 복사</button>' +
+                    '<button type="button" id="cal-action-delete" class="danger">일정 삭제</button>' +
+                '</div>' +
+            '</div>' +
+            '<form id="cal-event-editor" class="cal-event-editor" style="display:none;">' +
+                '<label>제목<input type="text" id="cal-modal-title-input" required></label>' +
+                '<label>시작일<input type="date" id="cal-modal-start-input" required></label>' +
+                '<label>종료일<input type="date" id="cal-modal-end-input" required></label>' +
+                '<label>타입<select id="cal-modal-type-input"><option value="family">가족 행사</option><option value="personal">개인 일정</option></select></label>' +
+                '<label>시간<input type="time" id="cal-modal-time-input"></label>' +
+                '<label class="cal-modal-all-day"><input type="checkbox" id="cal-modal-all-day-input">종일</label>' +
+                '<fieldset id="cal-modal-members-wrap" class="cal-modal-members-group">' +
+                    '<legend>참여자(개인 일정)</legend>' +
+                    '<label><input type="checkbox" class="cal-modal-member-check" value="진영">진영</label>' +
+                    '<label><input type="checkbox" class="cal-modal-member-check" value="지요">지요</label>' +
+                    '<label><input type="checkbox" class="cal-modal-member-check" value="유하">유하</label>' +
+                    '<label><input type="checkbox" class="cal-modal-member-check" value="우재">우재</label>' +
+                '</fieldset>' +
+                '<div class="cal-event-action-buttons">' +
+                    '<button type="submit" id="cal-modal-save">저장</button>' +
+                    '<button type="button" id="cal-modal-cancel">취소</button>' +
+                '</div>' +
+            '</form>' +
+        '</div>';
+
+    document.body.appendChild(modal);
+
+    modal.querySelector('.cal-event-modal-backdrop').addEventListener('click', hideCalendarEventModal);
+    document.getElementById('cal-event-modal-close').addEventListener('click', hideCalendarEventModal);
+    document.getElementById('cal-action-edit').addEventListener('click', function() { editCalendarEvent(calModalState.eventId); });
+    document.getElementById('cal-action-copy').addEventListener('click', function() { copyCalendarEvent(calModalState.eventId); });
+    document.getElementById('cal-action-delete').addEventListener('click', function() {
+        deleteCalendarEvent(calModalState.eventId);
+        hideCalendarEventModal();
+    });
+    document.getElementById('cal-modal-cancel').addEventListener('click', function() { showEventActionPanel(findEventById(calModalState.eventId)); });
+    document.getElementById('cal-modal-type-input').addEventListener('change', syncModalMembersEnabled);
+    document.getElementById('cal-modal-all-day-input').addEventListener('change', syncModalTimeEnabled);
+    document.getElementById('cal-modal-start-input').addEventListener('change', syncModalEndDateMin);
+    document.getElementById('cal-event-editor').addEventListener('submit', handleCalendarEventEditorSubmit);
+}
+
+function showCalendarEventModal() {
+    var modal = document.getElementById('cal-event-modal');
+    if (modal) modal.classList.add('open');
+}
+
+function hideCalendarEventModal() {
+    var modal = document.getElementById('cal-event-modal');
+    if (modal) modal.classList.remove('open');
+}
+
+function showEventActionPanel(ev) {
+    if (!ev) return;
+    document.getElementById('cal-event-modal-title').textContent = '일정 관리';
+    document.getElementById('cal-event-action-panel').style.display = '';
+    document.getElementById('cal-event-editor').style.display = 'none';
+    document.getElementById('cal-event-summary').textContent =
+        ev.title + ' · ' + getEventDateLabel(ev) + ' · ' + getEventTimeLabel(ev) +
+        (getMemberText(ev) ? ' · 참여자: ' + getMemberText(ev) : '');
+}
+
+function openEventEditorModal(mode, ev) {
+    calModalState.mode = mode;
+    calModalState.eventId = ev.id;
+
+    document.getElementById('cal-event-modal-title').textContent = mode === 'copy' ? '일정 복사' : '일정 수정';
+    document.getElementById('cal-event-action-panel').style.display = 'none';
+    document.getElementById('cal-event-editor').style.display = '';
+
+    document.getElementById('cal-modal-title-input').value = ev.title;
+    document.getElementById('cal-modal-start-input').value = ev.startDate;
+    document.getElementById('cal-modal-end-input').value = ev.endDate;
+    syncModalEndDateMin();
+    document.getElementById('cal-modal-type-input').value = ev.type;
+    document.getElementById('cal-modal-time-input').value = ev.time || '';
+    document.getElementById('cal-modal-all-day-input').checked = !!ev.isAllDay;
+    setModalMemberChecks(ev.member);
+
+    syncModalMembersEnabled();
+    syncModalTimeEnabled();
+    showCalendarEventModal();
+}
+
+function syncModalMembersEnabled() {
+    var type = document.getElementById('cal-modal-type-input').value;
+    var membersWrap = document.getElementById('cal-modal-members-wrap');
+    var checks = document.querySelectorAll('.cal-modal-member-check');
+    var isPersonal = type === 'personal';
+    membersWrap.disabled = !isPersonal;
+    checks.forEach(function(chk) {
+        chk.disabled = !isPersonal;
+        if (!isPersonal) chk.checked = false;
+    });
+}
+
+function syncModalTimeEnabled() {
+    var allDay = document.getElementById('cal-modal-all-day-input').checked;
+    var timeInput = document.getElementById('cal-modal-time-input');
+    timeInput.disabled = allDay;
+    if (allDay) timeInput.value = '';
+}
+
+function syncModalEndDateMin() {
+    var startInput = document.getElementById('cal-modal-start-input');
+    var endInput = document.getElementById('cal-modal-end-input');
+    if (!startInput || !endInput) return;
+    var start = normalizeDateString(startInput.value);
+    if (!start) return;
+    endInput.min = start;
+    if (!endInput.value || compareDateStr(endInput.value, start) < 0) {
+        endInput.value = start;
+    }
+}
+
+function handleCalendarEventEditorSubmit(e) {
+    e.preventDefault();
+
+    var baseEvent = findEventById(calModalState.eventId);
+    if (!baseEvent) return;
+
+    var title = document.getElementById('cal-modal-title-input').value.trim();
+    var startDate = normalizeDateString(document.getElementById('cal-modal-start-input').value);
+    var endDate = normalizeDateString(document.getElementById('cal-modal-end-input').value);
+    var type = document.getElementById('cal-modal-type-input').value;
+    var isAllDay = document.getElementById('cal-modal-all-day-input').checked;
+    var time = document.getElementById('cal-modal-time-input').value;
+    var members = getModalCheckedMembers();
+
+    if (!title || !startDate || !endDate) { alert('제목/시작일/종료일을 입력해주세요.'); return; }
+    if (compareDateStr(endDate, startDate) < 0) { alert('종료일은 시작일보다 빠를 수 없습니다.'); return; }
+
+    var newEvent = {
+        id: calModalState.mode === 'copy' ? createEventId() : baseEvent.id,
+        title: title,
+        startDate: startDate,
+        endDate: endDate,
+        isAllDay: isAllDay,
+        time: isAllDay ? '' : (time || ''),
+        member: type === 'personal' ? (members.length > 0 ? members : '') : '',
+        type: type,
+        duration: baseEvent.duration || 60
+    };
+
+    var compareEvents = calState.events.filter(function(ev) {
+        return ev.id !== baseEvent.id || calModalState.mode === 'copy';
+    });
+    var conflicts = detectConflictsWithEvent(newEvent, compareEvents);
+    if (conflicts.length > 0) {
+        if (!confirm('겹치는 일정이 있습니다.\n' + conflicts[0].title + ' ↔ ' + conflicts[0].with + '\n이대로 저장할까요?')) return;
+    }
+
+    if (calModalState.mode === 'copy') {
+        calState.events.push(newEvent);
+    } else {
+        var idx = findEventIndexById(baseEvent.id);
+        if (idx >= 0) calState.events[idx] = newEvent;
+    }
+
+    saveCalendarEvents();
+    refreshCalendarCurrentView();
+    hideCalendarEventModal();
+}
+
+function setModalMemberChecks(memberValue) {
+    var selected = [];
+    if (Array.isArray(memberValue)) selected = memberValue.slice();
+    else if (typeof memberValue === 'string' && memberValue) selected = [memberValue];
+
+    var checks = document.querySelectorAll('.cal-modal-member-check');
+    checks.forEach(function(chk) {
+        chk.checked = selected.indexOf(chk.value) >= 0;
+    });
+}
+
+function getModalCheckedMembers() {
+    var checks = document.querySelectorAll('.cal-modal-member-check');
+    var members = [];
+    checks.forEach(function(chk) {
+        if (chk.checked) members.push(chk.value);
+    });
+    return members;
+}
+
+function syncInputEndDateMin() {
+    var startInput = document.getElementById('cal-date-start');
+    var endInput = document.getElementById('cal-date-end');
+    var start = normalizeDateString(startInput.value);
+    if (!start) return;
+    endInput.min = start;
+    if (!endInput.value || compareDateStr(endInput.value, start) < 0) {
+        endInput.value = start;
+    }
+}
+
+function initInputMemberPicker() {
+    var toggleBtn = document.getElementById('cal-member-toggle');
+    var menu = document.getElementById('cal-member-menu');
+    var picker = document.getElementById('cal-member-picker');
+    if (!toggleBtn || !menu || !picker) return;
+
+    toggleBtn.addEventListener('click', function() {
+        if (toggleBtn.disabled) return;
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    });
+
+    document.querySelectorAll('.cal-input-member-check').forEach(function(chk) {
+        chk.addEventListener('change', updateInputMemberToggleText);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!picker.contains(e.target)) {
+            menu.style.display = 'none';
+        }
+    });
+
+    updateInputMemberToggleText();
+}
+
+function getInputCheckedMembers() {
+    var members = [];
+    document.querySelectorAll('.cal-input-member-check').forEach(function(chk) {
+        if (chk.checked) members.push(chk.value);
+    });
+    return members;
+}
+
+function updateInputMemberToggleText() {
+    var toggleBtn = document.getElementById('cal-member-toggle');
+    if (!toggleBtn) return;
+    var members = getInputCheckedMembers();
+    if (members.length === 0) {
+        toggleBtn.textContent = '참여자 선택';
+    } else if (members.length === 1) {
+        toggleBtn.textContent = members[0];
+    } else {
+        toggleBtn.textContent = members[0] + ' 외 ' + (members.length - 1) + '명';
+    }
 }
