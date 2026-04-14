@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>비밀 포털 대시보드</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260415">
+    <link rel="stylesheet" href="style.css?v=20260415-2">
 </head>
 <body>
     <div id="login-container">
@@ -16,8 +16,35 @@
             <input type="checkbox" id="remember-id"> 아이디 저장하기
         </label>
         <button id="login-btn"><i class="fas fa-unlock"></i> 로그인</button>
+        <button id="open-signup-btn" type="button" class="signup-btn"><i class="fas fa-user-plus"></i> 계정 추가</button>
         <button id="reset-client-data-btn" type="button" class="reset-client-data-btn">휴대폰 데이터 초기화</button>
         <p id="error-msg"></p>
+    </div>
+
+    <div id="signup-modal" class="account-modal" style="display:none;">
+        <div class="account-modal-backdrop" data-close="signup"></div>
+        <div class="account-modal-panel" role="dialog" aria-modal="true" aria-labelledby="signup-modal-title">
+            <div class="account-modal-head">
+                <h4 id="signup-modal-title">계정 추가</h4>
+                <button id="signup-close-btn" type="button" class="account-modal-close">닫기</button>
+            </div>
+            <label class="account-modal-label">ID
+                <input id="signup-id" type="text" autocomplete="off" placeholder="새 ID 입력">
+            </label>
+            <label class="account-modal-label">Password
+                <input id="signup-password" type="password" placeholder="비밀번호 입력">
+            </label>
+            <label class="account-modal-label">Password 확인
+                <input id="signup-password-confirm" type="password" placeholder="비밀번호 다시 입력">
+            </label>
+            <label class="account-modal-label">참여자 리스트 (한 줄에 한 명)
+                <textarea id="signup-participants" class="account-modal-textarea" placeholder="예)&#10;아빠&#10;엄마&#10;첫째&#10;둘째"></textarea>
+            </label>
+            <div class="account-modal-actions">
+                <button id="signup-submit-btn" type="button">계정 생성</button>
+                <button id="signup-cancel-btn" type="button" class="ghost">취소</button>
+            </div>
+        </div>
     </div>
 
     <div class="browser-window" id="browser-window" style="display: none;">
@@ -38,6 +65,7 @@
                         <button type="button" class="portal-tab-btn" data-tab="report">뉴스데스크</button>
                     </div>
                     <p id="greeting"></p>
+                    <button id="account-settings-btn" class="account-settings-btn" type="button" title="계정 편집"><i class="fas fa-user-gear"></i></button>
                     <button id="dark-mode-toggle" class="dark-mode-toggle" type="button" title="다크 모드">🌙</button>
                 </header>
 
@@ -87,12 +115,7 @@
                                 </select>
                                 <div id="cal-member-picker" class="cal-member-picker">
                                     <button type="button" id="cal-member-toggle" class="cal-member-toggle">참여자 선택</button>
-                                    <div id="cal-member-menu" class="cal-member-menu" style="display:none;">
-                                        <label><input type="checkbox" class="cal-input-member-check" value="진영">진영</label>
-                                        <label><input type="checkbox" class="cal-input-member-check" value="지요">지요</label>
-                                        <label><input type="checkbox" class="cal-input-member-check" value="유하">유하</label>
-                                        <label><input type="checkbox" class="cal-input-member-check" value="우재">우재</label>
-                                    </div>
+                                    <div id="cal-member-menu" class="cal-member-menu" style="display:none;"></div>
                                 </div>
                                 <input type="text" id="cal-input" placeholder="일정 제목 입력">
                             </div>
@@ -176,7 +199,30 @@
         </div>
     </div>
 
+    <div id="account-edit-modal" class="account-modal" style="display:none;">
+        <div class="account-modal-backdrop" data-close="account-edit"></div>
+        <div class="account-modal-panel" role="dialog" aria-modal="true" aria-labelledby="account-edit-modal-title">
+            <div class="account-modal-head">
+                <h4 id="account-edit-modal-title">계정 편집</h4>
+                <button id="account-edit-close-btn" type="button" class="account-modal-close">닫기</button>
+            </div>
+            <label class="account-modal-label">새 Password
+                <input id="account-edit-password" type="password" placeholder="변경하지 않으면 비워두세요">
+            </label>
+            <label class="account-modal-label">새 Password 확인
+                <input id="account-edit-password-confirm" type="password" placeholder="비밀번호 다시 입력">
+            </label>
+            <label class="account-modal-label">참여자 리스트 (한 줄에 한 명)
+                <textarea id="account-edit-participants" class="account-modal-textarea" placeholder="참여자 입력"></textarea>
+            </label>
+            <div class="account-modal-actions">
+                <button id="account-edit-save-btn" type="button">저장</button>
+                <button id="account-edit-cancel-btn" type="button" class="ghost">취소</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="script.js?v=20260415"></script>
+    <script src="script.js?v=20260415-2"></script>
 </body>
 </html>

@@ -1,5 +1,14 @@
-const previewUsers = [{ id: 'jjyw', hash: CryptoJS.MD5('756454').toString() }];
-localStorage.setItem('users', JSON.stringify(previewUsers));
+const DEFAULT_USER_ID = 'jjyw';
+const DEFAULT_USER_PASSWORD = '756454';
+const DEFAULT_PARTICIPANTS = ['진영', '지요', '유하', '우재'];
+const MAX_PARTICIPANTS = 20;
+
+var currentUserState = {
+    id: '',
+    participants: DEFAULT_PARTICIPANTS.slice()
+};
+
+bootstrapUserStore();
 
 document.addEventListener('DOMContentLoaded', function() {
     const darkModeBtn = document.getElementById('dark-mode-toggle');
@@ -17,10 +26,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('save-notes').addEventListener('click', saveNotes);
     document.getElementById('save-assets').addEventListener('click', saveAssets);
     document.getElementById('reset-client-data-btn').addEventListener('click', clearClientData);
+    document.getElementById('open-signup-btn').addEventListener('click', openSignupModal);
+    document.getElementById('account-settings-btn').addEventListener('click', openAccountEditModal);
     initCalendarEventModal();
     initMemoEditorModal();
     initMemoListEvents();
     initMemoVoiceInput();
+    initAccountModals();
     initRememberedId();
 });
 
@@ -35,17 +47,131 @@ var memoVoiceState = {
     chunks: [],
     recognition: null,
     isRecording: false,
-    lastAudioDataUrl: ''
+    lastAudioDataUrl: '',
+    autoSaveTimer: null,
+    lastAutoSavedText: '',
+    lastAutoSavedAt: 0,
+    lifecycleBound: false,
+    hasTranscript: false,
+    recognitionSupported: true,
+    storageWarned: false
 };
+
+function bootstrapUserStore() {
+    var users = getUsers();
+    var hasDefault = users.some(function(user) { return user.id === DEFAULT_USER_ID; });
+    if (!hasDefault) {
+        users.push({
+            id: DEFAULT_USER_ID,
+            hash: CryptoJS.MD5(DEFAULT_USER_PASSWORD).toString(),
+            participants: DEFAULT_PARTICIPANTS.slice(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        });
+    }
+
+    users = users.map(normalizeUserRecord);
+    saveUsers(users);
+}
+
+function normalizeUserRecord(user) {
+    var createdAt = user && user.createdAt ? user.createdAt : new Date().toISOString();
+    return {
+        id: user && user.id ? String(user.id).trim() : '',
+        hash: user && user.hash ? String(user.hash) : '',
+        participants: sanitizeParticipants(user && user.participants),
+        createdAt: createdAt,
+        updatedAt: user && user.updatedAt ? user.updatedAt : createdAt
+    };
+}
+
+function sanitizeParticipants(values) {
+    var items = [];
+    if (Array.isArray(values)) {
+        items = values;
+    } else if (typeof values === 'string') {
+        items = values.split(/\r?\n|,/);
+    }
+
+    var normalized = [];
+    items.forEach(function(name) {
+        var text = String(name || '').trim();
+        if (!text) return;
+        if (normalized.indexOf(text) >= 0) return;
+        normalized.push(text);
+    });
+
+    if (!normalized.length) {
+        return DEFAULT_PARTICIPANTS.slice();
+    }
+    return normalized.slice(0, MAX_PARTICIPANTS);
+}
+
+function getUsers() {
+    return JSON.parse(localStorage.getItem('users') || '[]');
+}
+
+function saveUsers(users) {
+    localStorage.setItem('users', JSON.stringify(users));
+}
+
+function getCurrentUserId() {
+    return currentUserState.id || (sessionStorage.getItem('currentUserId') || '');
+}
+
+function getScopedKey(baseKey) {
+    var userId = getCurrentUserId();
+    if (!userId) return baseKey;
+    return baseKey + ':' + userId;
+}
+
+function migrateLegacyScopedData(userId) {
+    if (!userId) return;
+    var markKey = 'legacyMigrated:' + userId;
+    if (localStorage.getItem(markKey) === '1') return;
+
+    ['memoEntries', 'assetSummary', 'calEvents'].forEach(function(baseKey) {
+        var scopedKey = baseKey + ':' + userId;
+        var legacy = localStorage.getItem(baseKey);
+        if (legacy && !localStorage.getItem(scopedKey)) {
+            localStorage.setItem(scopedKey, legacy);
+        }
+    });
+
+    localStorage.setItem(markKey, '1');
+}
+
+function applyCurrentUser(user) {
+    if (!user) return;
+    currentUserState.id = user.id;
+    currentUserState.participants = sanitizeParticipants(user.participants);
+    sessionStorage.setItem('currentUserId', user.id);
+    migrateLegacyScopedData(user.id);
+}
+
+function getCurrentUser() {
+    var userId = getCurrentUserId();
+    if (!userId) return null;
+    return getUsers().find(function(user) { return user.id === userId; }) || null;
+}
+
+function getCurrentParticipants() {
+    if (Array.isArray(currentUserState.participants) && currentUserState.participants.length) {
+        return currentUserState.participants.slice();
+    }
+    var user = getCurrentUser();
+    return sanitizeParticipants(user && user.participants);
+}
 
 function handleLogin() {
     const enteredId = document.getElementById('username').value.trim();
     const enteredPassword = document.getElementById('password').value;
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const users = getUsers();
     const user = users.find(function(u) { return u.id === enteredId; });
 
     if (user && CryptoJS.MD5(enteredPassword).toString() === user.hash) {
-        document.getElementById('greeting').textContent = '가정이 화목하면 하루가 따스하고, 마음이 평안하면 복이 스스로 깃든다.';
+        applyCurrentUser(user);
+        renderUserContext();
         syncRememberedId();
         document.getElementById('login-container').style.display = 'none';
         document.getElementById('browser-window').style.display = 'block';
@@ -57,6 +183,9 @@ function handleLogin() {
 }
 
 function handleLogout() {
+    sessionStorage.removeItem('currentUserId');
+    currentUserState.id = '';
+    currentUserState.participants = DEFAULT_PARTICIPANTS.slice();
     document.getElementById('browser-window').style.display = 'none';
     document.getElementById('login-container').style.display = 'block';
     document.getElementById('password').value = '';
@@ -86,21 +215,50 @@ function syncRememberedId() {
 function clearClientData() {
     if (!confirm('휴대폰에 저장된 메모/일정/자산 데이터를 초기화할까요?')) return;
 
+    var users = getUsers();
+    users.forEach(function(user) {
+        localStorage.removeItem('memoEntries:' + user.id);
+        localStorage.removeItem('assetSummary:' + user.id);
+        localStorage.removeItem('calEvents:' + user.id);
+    });
     localStorage.removeItem('memoEntries');
     localStorage.removeItem('notes');
     localStorage.removeItem('assetSummary');
     localStorage.removeItem('calEvents');
-    localStorage.setItem('users', JSON.stringify(previewUsers));
 
     alert('저장 데이터가 초기화되었습니다. 새로고침합니다.');
     location.reload();
 }
 
 function saveNotes() {
-    var notes = document.getElementById('notes').value.trim();
+    if (!saveCurrentMemo({
+        alertOnEmpty: true,
+        clearStatus: true,
+        fromVoiceAutoSave: false
+    })) return;
+}
+
+function saveCurrentMemo(options) {
+    var opts = options || {};
+    var notesEl = document.getElementById('notes');
+    var notes = notesEl ? notesEl.value.trim() : '';
+    var hasAudio = !!memoVoiceState.lastAudioDataUrl;
+    if (!notes && opts.allowAudioOnly && hasAudio) {
+        notes = '[음성 메모] ' + fmtMemoDate(new Date().toISOString());
+    }
+
     if (!notes) {
-        alert('메모 내용을 입력해주세요.');
-        return;
+        if (opts.alertOnEmpty) {
+            alert('메모 내용을 입력해주세요.');
+        }
+        return false;
+    }
+
+    if (opts.skipDuplicateAutoSave) {
+        var justSaved = (Date.now() - memoVoiceState.lastAutoSavedAt) < 1800;
+        if (justSaved && memoVoiceState.lastAutoSavedText === notes) {
+            return false;
+        }
     }
 
     var entry = {
@@ -111,16 +269,43 @@ function saveNotes() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
+
     memoState.entries.push(entry);
-    saveMemoEntries();
+    if (!saveMemoEntries()) {
+        memoState.entries.pop();
+        return false;
+    }
+
+    if (opts.fromVoiceAutoSave) {
+        memoVoiceState.lastAutoSavedText = notes;
+        memoVoiceState.lastAutoSavedAt = Date.now();
+    }
+
     memoVoiceState.lastAudioDataUrl = '';
-    document.getElementById('notes').value = '';
-    setMemoVoiceStatus('');
+    if (notesEl) notesEl.value = '';
+    if (opts.statusText) {
+        setMemoVoiceStatus(opts.statusText);
+    } else if (opts.clearStatus) {
+        setMemoVoiceStatus('');
+    }
     renderMemoEntries();
+    return true;
+}
+
+function autoSaveMemoFromVoice(options) {
+    var opts = options || {};
+    saveCurrentMemo({
+        alertOnEmpty: false,
+        clearStatus: false,
+        fromVoiceAutoSave: true,
+        skipDuplicateAutoSave: true,
+        allowAudioOnly: !!opts.allowAudioOnly,
+        statusText: opts.statusText || '음성 인식 메모를 자동 저장했습니다.'
+    });
 }
 
 function loadNotes() {
-    var storedEntries = JSON.parse(localStorage.getItem('memoEntries') || '[]');
+    var storedEntries = JSON.parse(localStorage.getItem(getScopedKey('memoEntries')) || '[]');
     var legacyNote = (localStorage.getItem('notes') || '').trim();
 
     memoState.entries = (storedEntries || []).filter(function(item) {
@@ -150,10 +335,70 @@ function loadNotes() {
     saveMemoEntries();
     document.getElementById('notes').value = '';
     renderMemoEntries();
+    checkMemoStoragePressure();
 }
 
 function saveMemoEntries() {
-    localStorage.setItem('memoEntries', JSON.stringify(memoState.entries));
+    try {
+        localStorage.setItem(getScopedKey('memoEntries'), JSON.stringify(memoState.entries));
+        checkMemoStoragePressure();
+        return true;
+    } catch (err) {
+        if (err && err.name === 'QuotaExceededError') {
+            var cleaned = cleanupOldMemoAudioData();
+            if (cleaned) {
+                try {
+                    localStorage.setItem(getScopedKey('memoEntries'), JSON.stringify(memoState.entries));
+                    setMemoVoiceStatus('저장 공간 부족으로 오래된 음성파일 일부를 정리했습니다.');
+                    return true;
+                } catch (retryErr) {
+                    console.error('메모 저장 재시도 실패:', retryErr);
+                }
+            }
+            alert('저장 공간이 부족합니다. 오래된 메모를 삭제한 뒤 다시 시도해주세요.');
+            return false;
+        }
+
+        console.error('메모 저장 실패:', err);
+        alert('메모 저장 중 오류가 발생했습니다. 다시 시도해주세요.');
+        return false;
+    }
+}
+
+function checkMemoStoragePressure() {
+    if (!navigator.storage || !navigator.storage.estimate) return;
+
+    navigator.storage.estimate().then(function(est) {
+        var usage = Number(est.usage || 0);
+        var quota = Number(est.quota || 0);
+        if (!quota) return;
+
+        var usagePercent = (usage / quota) * 100;
+        if (usagePercent >= 85 && !memoVoiceState.storageWarned) {
+            memoVoiceState.storageWarned = true;
+            setMemoVoiceStatus('저장 공간 사용량이 높습니다. 오래된 메모 음성을 정리하면 안정적으로 저장됩니다.');
+        }
+        if (usagePercent < 70) {
+            memoVoiceState.storageWarned = false;
+        }
+    }).catch(function() {
+        // storage estimate 미지원 환경
+    });
+}
+
+function cleanupOldMemoAudioData() {
+    var removed = false;
+    var ordered = memoState.entries.slice().sort(function(a, b) {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    ordered.forEach(function(entry) {
+        if (!entry.audioDataUrl) return;
+        entry.audioDataUrl = '';
+        removed = true;
+    });
+
+    return removed;
 }
 
 function createMemoId() {
@@ -322,10 +567,33 @@ function toggleMemoImportant(memoId) {
 function initMemoVoiceInput() {
     var startBtn = document.getElementById('memo-voice-start');
     var stopBtn = document.getElementById('memo-voice-stop');
+    var notesEl = document.getElementById('notes');
     if (!startBtn || !stopBtn) return;
 
     startBtn.addEventListener('click', startMemoVoiceInput);
     stopBtn.addEventListener('click', stopMemoVoiceInput);
+
+    if (notesEl) {
+        notesEl.addEventListener('compositionend', function() {
+            notesEl.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    }
+
+    if (!memoVoiceState.lifecycleBound) {
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && memoVoiceState.isRecording) {
+                setMemoVoiceStatus('화면이 비활성화되어 음성 입력을 중지합니다. 다시 시작해주세요.');
+                stopMemoVoiceInput('hidden');
+            }
+        });
+
+        window.addEventListener('blur', function() {
+            if (!memoVoiceState.isRecording) return;
+            setMemoVoiceStatus('다른 화면으로 이동하면 음성 인식이 중단될 수 있습니다.');
+        });
+
+        memoVoiceState.lifecycleBound = true;
+    }
 }
 
 function setMemoVoiceStatus(text) {
@@ -357,6 +625,8 @@ function startMemoVoiceInput() {
     }
 
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        memoVoiceState.hasTranscript = false;
+        checkMemoStoragePressure();
         memoVoiceState.stream = stream;
         memoVoiceState.chunks = [];
         memoVoiceState.recorder = new MediaRecorder(stream);
@@ -370,6 +640,14 @@ function startMemoVoiceInput() {
                 memoVoiceState.lastAudioDataUrl = typeof reader.result === 'string' ? reader.result : '';
                 if (memoVoiceState.lastAudioDataUrl) {
                     setMemoVoiceStatus('음성 녹음이 완료되었습니다. 메모 저장 시 원본 음성이 함께 저장됩니다.');
+                    var notesEl = document.getElementById('notes');
+                    var hasText = notesEl && notesEl.value.trim().length > 0;
+                    if (!memoVoiceState.hasTranscript && !hasText) {
+                        autoSaveMemoFromVoice({
+                            allowAudioOnly: true,
+                            statusText: '텍스트 변환 없이 음성 메모로 자동 저장했습니다.'
+                        });
+                    }
                 }
             };
             reader.readAsDataURL(blob);
@@ -380,17 +658,33 @@ function startMemoVoiceInput() {
         setMemoVoiceUi(true);
         setMemoVoiceStatus('음성 입력 중... 완료 후 중지 버튼을 눌러주세요.');
         startSpeechRecognitionForMemo();
-    }).catch(function() {
-        alert('마이크 권한이 필요합니다. 브라우저 권한을 확인해주세요.');
+    }).catch(function(err) {
+        var code = err && err.name ? err.name : '';
+        if (code === 'NotAllowedError' || code === 'PermissionDeniedError') {
+            setMemoVoiceStatus('마이크 권한이 거부되었습니다. 브라우저 권한을 허용해주세요.');
+            return;
+        }
+        if (code === 'NotFoundError' || code === 'DevicesNotFoundError') {
+            setMemoVoiceStatus('사용 가능한 마이크를 찾을 수 없습니다.');
+            return;
+        }
+        if (code === 'NotReadableError' || code === 'TrackStartError') {
+            setMemoVoiceStatus('마이크가 다른 앱에서 사용 중입니다. 잠시 후 다시 시도해주세요.');
+            return;
+        }
+        setMemoVoiceStatus('마이크 초기화에 실패했습니다. 다시 시도해주세요.');
     });
 }
 
 function startSpeechRecognitionForMemo() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-        setMemoVoiceStatus('음성 녹음은 가능하지만 음성 인식은 이 브라우저에서 지원되지 않습니다.');
+        memoVoiceState.recognitionSupported = false;
+        setMemoVoiceStatus('이 브라우저는 음성 텍스트 변환을 지원하지 않습니다. 녹음 종료 시 음성 메모로 자동 저장됩니다.');
         return;
     }
+
+    memoVoiceState.recognitionSupported = true;
 
     var recognition = new SR();
     memoVoiceState.recognition = recognition;
@@ -401,24 +695,67 @@ function startSpeechRecognitionForMemo() {
 
     recognition.onresult = function(ev) {
         if (!ev.results || !ev.results[0] || !ev.results[0][0]) return;
+        memoVoiceState.hasTranscript = true;
         var transcript = ev.results[0][0].transcript || '';
         var refined = refineKoreanSpeechText(transcript);
-        document.getElementById('notes').value = refined;
-        setMemoVoiceStatus('음성 인식 완료: 자연스러운 문장으로 보정했습니다. 테스트 후 저장해주세요.');
+        var notesEl = document.getElementById('notes');
+        if (!notesEl) return;
+
+        notesEl.value = refined;
+        notesEl.dispatchEvent(new Event('input', { bubbles: true }));
+        notesEl.dispatchEvent(new Event('change', { bubbles: true }));
+        setMemoVoiceStatus('음성 인식 완료: 자동 저장 중입니다...');
+
+        if (memoVoiceState.autoSaveTimer) {
+            clearTimeout(memoVoiceState.autoSaveTimer);
+        }
+        memoVoiceState.autoSaveTimer = setTimeout(function() {
+            autoSaveMemoFromVoice();
+            memoVoiceState.autoSaveTimer = null;
+        }, 250);
     };
 
-    recognition.onerror = function() {
+    recognition.onerror = function(ev) {
+        var code = ev && ev.error ? ev.error : '';
+        if (code === 'no-speech') {
+            setMemoVoiceStatus('음성을 감지하지 못했습니다. 다시 시도해주세요.');
+            return;
+        }
+        if (code === 'network') {
+            setMemoVoiceStatus('네트워크 문제로 음성 인식이 중단되었습니다. 연결 후 다시 시도해주세요.');
+            return;
+        }
+        if (code === 'not-allowed' || code === 'service-not-allowed') {
+            setMemoVoiceStatus('음성 인식 권한이 거부되었습니다. 브라우저 설정을 확인해주세요.');
+            return;
+        }
         setMemoVoiceStatus('음성 인식 중 오류가 발생했습니다. 텍스트를 직접 수정해 저장해주세요.');
     };
 
-    recognition.start();
+    recognition.onend = function() {
+        if (memoVoiceState.isRecording && memoVoiceState.recognitionSupported && !memoVoiceState.hasTranscript) {
+            setMemoVoiceStatus('음성 인식이 종료되었습니다. 필요하면 다시 시작해주세요.');
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (err) {
+        setMemoVoiceStatus('음성 인식을 시작하지 못했습니다. 다시 시도해주세요.');
+    }
 }
 
-function stopMemoVoiceInput() {
+function stopMemoVoiceInput(reason) {
     if (!memoVoiceState.isRecording) return;
 
     memoVoiceState.isRecording = false;
     setMemoVoiceUi(false);
+
+    if (memoVoiceState.autoSaveTimer) {
+        clearTimeout(memoVoiceState.autoSaveTimer);
+        memoVoiceState.autoSaveTimer = null;
+        autoSaveMemoFromVoice();
+    }
 
     if (memoVoiceState.recognition) {
         try { memoVoiceState.recognition.stop(); } catch (e) {}
@@ -430,6 +767,10 @@ function stopMemoVoiceInput() {
     if (memoVoiceState.stream) {
         memoVoiceState.stream.getTracks().forEach(function(track) { track.stop(); });
         memoVoiceState.stream = null;
+    }
+
+    if (reason !== 'hidden' && !memoVoiceState.lastAudioDataUrl) {
+        setMemoVoiceStatus('음성 입력이 종료되었습니다.');
     }
 }
 
@@ -470,12 +811,12 @@ function saveAssets() {
     const total = Number(document.getElementById('input-total').value || 0);
     const loan = Number(document.getElementById('input-loan').value || 0);
     const payload = { total: total, loan: loan };
-    localStorage.setItem('assetSummary', JSON.stringify(payload));
+    localStorage.setItem(getScopedKey('assetSummary'), JSON.stringify(payload));
     renderAssets(payload);
 }
 
 function loadAssets() {
-    const stored = JSON.parse(localStorage.getItem('assetSummary') || '{"total":0,"loan":0}');
+    const stored = JSON.parse(localStorage.getItem(getScopedKey('assetSummary')) || '{"total":0,"loan":0}');
     document.getElementById('input-total').value = stored.total || '';
     document.getElementById('input-loan').value = stored.loan || '';
     renderAssets(stored);
@@ -501,6 +842,8 @@ function formatWon(value) {
 }
 
 function loadDashboardData() {
+    renderUserContext();
+    renderInputMemberOptions();
     loadNotes();
     loadNews();
     loadAssets();
@@ -579,9 +922,9 @@ var calModalState = {
 };
 
 function initCalendar() {
-    var storedEvents = (JSON.parse(localStorage.getItem('calEvents') || '[]') || []);
+    var storedEvents = (JSON.parse(localStorage.getItem(getScopedKey('calEvents')) || '[]') || []);
     calState.events = storedEvents.map(normalizeCalEvent).filter(function(ev) { return !!ev; });
-    localStorage.setItem('calEvents', JSON.stringify(calState.events));
+    localStorage.setItem(getScopedKey('calEvents'), JSON.stringify(calState.events));
     calState.year = new Date().getFullYear();
     calState.month = new Date().getMonth();
 
@@ -613,6 +956,7 @@ function initCalendar() {
         if (e.key === 'Enter') addCalEvent();
     });
     initInputMemberPicker();
+    renderInputMemberOptions();
 
     syncInputEndDateMin();
     syncMemberByType();
@@ -976,12 +1320,14 @@ function normalizeDateString(value) {
 function getEventEmoji(ev) {
     if (ev.type === 'family') return '👨‍👩‍👧‍👦';
     if (!Array.isArray(ev.member) || ev.member.length === 0) return '🙂';
-    if (ev.member.length > 1) return '👨‍👩‍👧‍👦';
-    if (ev.member[0] === '진영') return '👨';
-    if (ev.member[0] === '지요') return '👩';
-    if (ev.member[0] === '유하') return '👧';
-    if (ev.member[0] === '우재') return '👦';
-    return '🙂';
+    if (ev.member.length > 1) return '👥';
+    var emojis = ['🙂', '🧑', '👩', '👨', '👧', '👦', '🧒', '🧑‍💻'];
+    var name = String(ev.member[0] || '');
+    var hash = 0;
+    for (var i = 0; i < name.length; i++) {
+        hash += name.charCodeAt(i);
+    }
+    return emojis[hash % emojis.length];
 }
 
 function hasMembers(member) {
@@ -1001,7 +1347,7 @@ function createEventId() {
 }
 
 function saveCalendarEvents() {
-    localStorage.setItem('calEvents', JSON.stringify(calState.events));
+    localStorage.setItem(getScopedKey('calEvents'), JSON.stringify(calState.events));
 }
 
 function refreshCalendarCurrentView() {
@@ -1028,8 +1374,9 @@ function getMemberText(ev) {
 
 function parseMemberInput(text) {
     if (!text) return [];
+    var allow = getCurrentParticipants();
     return text.split(',').map(function(v) { return v.trim(); }).filter(function(v) {
-        return v === '진영' || v === '지요' || v === '유하' || v === '우재';
+        return allow.indexOf(v) >= 0;
     });
 }
 
@@ -1092,10 +1439,7 @@ function initCalendarEventModal() {
                 '<label class="cal-modal-all-day"><input type="checkbox" id="cal-modal-all-day-input">종일</label>' +
                 '<fieldset id="cal-modal-members-wrap" class="cal-modal-members-group">' +
                     '<legend>참여자(개인 일정)</legend>' +
-                    '<label><input type="checkbox" class="cal-modal-member-check" value="진영">진영</label>' +
-                    '<label><input type="checkbox" class="cal-modal-member-check" value="지요">지요</label>' +
-                    '<label><input type="checkbox" class="cal-modal-member-check" value="유하">유하</label>' +
-                    '<label><input type="checkbox" class="cal-modal-member-check" value="우재">우재</label>' +
+                    '<div id="cal-modal-members-list"></div>' +
                 '</fieldset>' +
                 '<div class="cal-event-action-buttons">' +
                     '<button type="submit" id="cal-modal-save">저장</button>' +
@@ -1156,6 +1500,7 @@ function openEventEditorModal(mode, ev) {
     document.getElementById('cal-modal-type-input').value = ev.type;
     document.getElementById('cal-modal-time-input').value = ev.time || '';
     document.getElementById('cal-modal-all-day-input').checked = !!ev.isAllDay;
+    renderModalMemberOptions(ev.member);
     setModalMemberChecks(ev.member);
 
     syncModalMembersEnabled();
@@ -1280,22 +1625,58 @@ function initInputMemberPicker() {
     var picker = document.getElementById('cal-member-picker');
     if (!toggleBtn || !menu || !picker) return;
 
-    toggleBtn.addEventListener('click', function() {
-        if (toggleBtn.disabled) return;
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    });
+    if (!toggleBtn.dataset.bound) {
+        toggleBtn.addEventListener('click', function() {
+            if (toggleBtn.disabled) return;
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        });
 
-    document.querySelectorAll('.cal-input-member-check').forEach(function(chk) {
-        chk.addEventListener('change', updateInputMemberToggleText);
-    });
-
-    document.addEventListener('click', function(e) {
-        if (!picker.contains(e.target)) {
-            menu.style.display = 'none';
-        }
-    });
+        document.addEventListener('click', function(e) {
+            if (!picker.contains(e.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        toggleBtn.dataset.bound = '1';
+    }
 
     updateInputMemberToggleText();
+}
+
+function renderInputMemberOptions() {
+    var menu = document.getElementById('cal-member-menu');
+    if (!menu) return;
+
+    var selected = getInputCheckedMembers();
+    var participants = getCurrentParticipants();
+    if (!participants.length) {
+        menu.innerHTML = '<div class="cal-empty">참여자 없음</div>';
+        return;
+    }
+
+    menu.innerHTML = participants.map(function(name) {
+        var checked = selected.indexOf(name) >= 0 ? ' checked' : '';
+        return '<label><input type="checkbox" class="cal-input-member-check" value="' + escapeHtml(name) + '"' + checked + '>' + escapeHtml(name) + '</label>';
+    }).join('');
+
+    menu.querySelectorAll('.cal-input-member-check').forEach(function(chk) {
+        chk.addEventListener('change', updateInputMemberToggleText);
+    });
+    updateInputMemberToggleText();
+}
+
+function renderModalMemberOptions(selectedMembers) {
+    var list = document.getElementById('cal-modal-members-list');
+    if (!list) return;
+
+    var selected = [];
+    if (Array.isArray(selectedMembers)) selected = selectedMembers.slice();
+    else if (typeof selectedMembers === 'string' && selectedMembers) selected = [selectedMembers];
+
+    var participants = getCurrentParticipants();
+    list.innerHTML = participants.map(function(name) {
+        var checked = selected.indexOf(name) >= 0 ? ' checked' : '';
+        return '<label><input type="checkbox" class="cal-modal-member-check" value="' + escapeHtml(name) + '"' + checked + '>' + escapeHtml(name) + '</label>';
+    }).join('');
 }
 
 function getInputCheckedMembers() {
@@ -1317,4 +1698,160 @@ function updateInputMemberToggleText() {
     } else {
         toggleBtn.textContent = members[0] + ' 외 ' + (members.length - 1) + '명';
     }
+}
+
+function renderUserContext() {
+    var user = getCurrentUser();
+    if (!user) return;
+
+    var participants = sanitizeParticipants(user.participants);
+    currentUserState.participants = participants;
+    var greeting = document.getElementById('greeting');
+    if (greeting) {
+        greeting.textContent = user.id + ' 계정 · 참여자: ' + participants.join(', ');
+    }
+}
+
+function parseParticipantsByLines(text) {
+    if (!text) return [];
+    return sanitizeParticipants(String(text).split(/\r?\n/));
+}
+
+function initAccountModals() {
+    var signupModal = document.getElementById('signup-modal');
+    var accountEditModal = document.getElementById('account-edit-modal');
+    if (!signupModal || !accountEditModal) return;
+
+    document.getElementById('signup-close-btn').addEventListener('click', closeSignupModal);
+    document.getElementById('signup-cancel-btn').addEventListener('click', closeSignupModal);
+    document.getElementById('signup-submit-btn').addEventListener('click', handleSignupSubmit);
+    document.getElementById('account-edit-close-btn').addEventListener('click', closeAccountEditModal);
+    document.getElementById('account-edit-cancel-btn').addEventListener('click', closeAccountEditModal);
+    document.getElementById('account-edit-save-btn').addEventListener('click', handleAccountEditSave);
+
+    document.querySelectorAll('.account-modal-backdrop').forEach(function(backdrop) {
+        backdrop.addEventListener('click', function() {
+            var key = backdrop.getAttribute('data-close');
+            if (key === 'signup') closeSignupModal();
+            if (key === 'account-edit') closeAccountEditModal();
+        });
+    });
+}
+
+function openSignupModal() {
+    document.getElementById('signup-id').value = '';
+    document.getElementById('signup-password').value = '';
+    document.getElementById('signup-password-confirm').value = '';
+    document.getElementById('signup-participants').value = '';
+    document.getElementById('signup-modal').style.display = 'block';
+}
+
+function closeSignupModal() {
+    document.getElementById('signup-modal').style.display = 'none';
+}
+
+function handleSignupSubmit() {
+    var id = document.getElementById('signup-id').value.trim();
+    var password = document.getElementById('signup-password').value;
+    var confirmPassword = document.getElementById('signup-password-confirm').value;
+    var participants = parseParticipantsByLines(document.getElementById('signup-participants').value);
+
+    if (!id || !password || !confirmPassword) {
+        alert('ID, Password, Password 확인을 모두 입력해주세요.');
+        return;
+    }
+    if (!/^[a-zA-Z0-9_-]{3,20}$/.test(id)) {
+        alert('ID는 3~20자의 영문/숫자/언더스코어/하이픈만 사용할 수 있습니다.');
+        return;
+    }
+    if (password !== confirmPassword) {
+        alert('비밀번호 확인이 일치하지 않습니다.');
+        return;
+    }
+    if (password.length < 4) {
+        alert('비밀번호는 4자 이상 입력해주세요.');
+        return;
+    }
+    if (!participants.length) {
+        alert('참여자를 한 명 이상 입력해주세요.');
+        return;
+    }
+
+    var users = getUsers();
+    if (users.some(function(user) { return user.id === id; })) {
+        alert('이미 사용 중인 ID입니다. 다른 ID를 입력해주세요.');
+        return;
+    }
+
+    users.push(normalizeUserRecord({
+        id: id,
+        hash: CryptoJS.MD5(password).toString(),
+        participants: participants,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    }));
+    saveUsers(users);
+    closeSignupModal();
+    alert('계정이 추가되었습니다. 새 계정으로 로그인해주세요.');
+}
+
+function openAccountEditModal() {
+    var user = getCurrentUser();
+    if (!user) return;
+
+    document.getElementById('account-edit-password').value = '';
+    document.getElementById('account-edit-password-confirm').value = '';
+    document.getElementById('account-edit-participants').value = sanitizeParticipants(user.participants).join('\n');
+    document.getElementById('account-edit-modal').style.display = 'block';
+}
+
+function closeAccountEditModal() {
+    document.getElementById('account-edit-modal').style.display = 'none';
+}
+
+function handleAccountEditSave() {
+    var userId = getCurrentUserId();
+    if (!userId) return;
+
+    var password = document.getElementById('account-edit-password').value;
+    var confirmPassword = document.getElementById('account-edit-password-confirm').value;
+    var participants = parseParticipantsByLines(document.getElementById('account-edit-participants').value);
+    if (!participants.length) {
+        alert('참여자를 한 명 이상 입력해주세요.');
+        return;
+    }
+    if (password || confirmPassword) {
+        if (password !== confirmPassword) {
+            alert('새 비밀번호 확인이 일치하지 않습니다.');
+            return;
+        }
+        if (password.length < 4) {
+            alert('비밀번호는 4자 이상 입력해주세요.');
+            return;
+        }
+    }
+
+    var users = getUsers();
+    var idx = users.findIndex(function(user) { return user.id === userId; });
+    if (idx < 0) {
+        alert('계정 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
+        return;
+    }
+
+    users[idx].participants = participants;
+    users[idx].updatedAt = new Date().toISOString();
+    if (password) {
+        users[idx].hash = CryptoJS.MD5(password).toString();
+    }
+    users[idx] = normalizeUserRecord(users[idx]);
+    saveUsers(users);
+
+    applyCurrentUser(users[idx]);
+    renderUserContext();
+    renderInputMemberOptions();
+    renderModalMemberOptions(getModalCheckedMembers());
+    syncMemberByType();
+    refreshCalendarCurrentView();
+    closeAccountEditModal();
+    alert('계정 정보가 저장되었습니다.');
 }
