@@ -39,6 +39,17 @@ body::before {
     color: #466789;
 }
 
+.reset-client-data-btn {
+    margin-top: 8px;
+    background: #e8eff6;
+    color: #355c80;
+    border: 1px solid #c9d8e8;
+}
+
+.reset-client-data-btn:hover {
+    background: #dce8f3;
+}
+
 .browser-window {
     width: min(1200px, 95vw);
     margin: 0 auto;

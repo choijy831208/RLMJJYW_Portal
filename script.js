@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('logout-btn').addEventListener('click', handleLogout);
     document.getElementById('save-notes').addEventListener('click', saveNotes);
     document.getElementById('save-assets').addEventListener('click', saveAssets);
+    document.getElementById('reset-client-data-btn').addEventListener('click', clearClientData);
     initCalendarEventModal();
     initMemoEditorModal();
     initMemoListEvents();
@@ -80,6 +81,19 @@ function syncRememberedId() {
     } else {
         localStorage.removeItem('rememberedId');
     }
+}
+
+function clearClientData() {
+    if (!confirm('휴대폰에 저장된 메모/일정/자산 데이터를 초기화할까요?')) return;
+
+    localStorage.removeItem('memoEntries');
+    localStorage.removeItem('notes');
+    localStorage.removeItem('assetSummary');
+    localStorage.removeItem('calEvents');
+    localStorage.setItem('users', JSON.stringify(previewUsers));
+
+    alert('저장 데이터가 초기화되었습니다. 새로고침합니다.');
+    location.reload();
 }
 
 function saveNotes() {
