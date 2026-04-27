@@ -16,7 +16,7 @@
     "password_storage": "local-hash-only"
   },
   "mobile": {
-    "navigation": "fixed-bottom-tabs",
+    "navigation": "static-top-grid-tabs",
     "safe_area": true,
     "input_font_min_px": 16
   }

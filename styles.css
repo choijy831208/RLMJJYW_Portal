@@ -1087,3 +1087,112 @@ p {
     font-size: 30px;
   }
 }
+
+/* Mobile stability patch: keep every portal tab in normal document flow. */
+@media (max-width: 820px) {
+  .portal {
+    display: block;
+    min-height: 100svh;
+  }
+
+  .sidebar {
+    position: static;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    display: block;
+    height: auto;
+    padding: 10px 12px;
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 1px solid var(--line);
+    background: #fcfbf7;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .sidebar-brand {
+    display: flex;
+    min-height: 48px;
+    margin-bottom: 8px;
+  }
+
+  .mini-mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .portal-nav,
+  .portal-nav::-webkit-scrollbar {
+    scrollbar-width: auto;
+  }
+
+  .portal-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+
+  .portal-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-button {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 28px auto;
+    justify-items: center;
+    min-width: 0;
+    min-height: 58px;
+    padding: 6px 4px;
+    font-size: 11px;
+    line-height: 1.15;
+    text-align: center;
+    scroll-snap-align: unset;
+  }
+
+  .nav-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .workspace {
+    min-height: auto;
+    padding: 12px 12px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    position: static;
+    z-index: auto;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0 0 14px;
+    padding: 0;
+    border-bottom: 0;
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 8px;
+  }
+
+  .topbar-actions .secondary-action {
+    width: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  .portal-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sidebar-brand strong {
+    max-width: 220px;
+  }
+}
