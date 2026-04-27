@@ -658,6 +658,14 @@ body::before {
     box-shadow: 0 8px 20px rgba(35, 62, 92, 0.08);
 }
 
+.card.study-widget {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+}
+
 .card-header {
     display: flex;
     align-items: center;
@@ -1080,25 +1088,70 @@ body.dark .browser-window {
 
 @media (max-width: 820px) {
     body { padding: 8px; }
+    body.study-tab-active {
+        padding: 0;
+        background: #f6f8fb;
+    }
     .browser-window {
         width: 100%;
         border-radius: 14px;
     }
+    body.study-tab-active .browser-window {
+        width: 100vw;
+        min-height: 100vh;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: #f6f8fb;
+    }
     .browser-content {
         padding: 10px;
+    }
+    body.study-tab-active .browser-content {
+        padding: 0;
+    }
+    body.study-tab-active .ai-speaker {
+        display: none;
+    }
+    body.study-tab-active #dashboard {
+        gap: 0;
     }
     .dashboard-header {
         padding: 16px 48px 16px 14px;
         border-radius: 12px;
     }
+    body.study-tab-active .dashboard-header {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        border-radius: 0;
+        padding: 10px 46px 10px 10px;
+        box-shadow: 0 6px 18px rgba(31, 65, 95, 0.12);
+    }
     .dashboard-header h2 {
         margin: 0;
         font-size: 20px;
+    }
+    body.study-tab-active .dashboard-header h2 {
+        font-size: 16px;
+    }
+    body.study-tab-active #greeting {
+        display: none;
+    }
+    body.study-tab-active .account-settings-btn,
+    body.study-tab-active .dark-mode-toggle {
+        top: 8px;
     }
     .portal-tabs {
         width: 100%;
         gap: 5px;
         border-radius: 14px;
+    }
+    body.study-tab-active .portal-tabs {
+        margin-top: 8px;
+        padding: 3px;
+        gap: 4px;
+        background: rgba(255, 255, 255, 0.72);
     }
     .portal-tab-btn {
         flex: 1 1 calc(50% - 6px);
@@ -1106,13 +1159,26 @@ body.dark .browser-window {
         padding: 8px 6px;
         font-size: 12px;
     }
+    body.study-tab-active .portal-tab-btn {
+        min-height: 30px;
+        padding: 7px 5px;
+        font-size: 11px;
+    }
     .widgets-grid { grid-template-columns: 1fr; }
     .widgets-grid.tab-schedule,
     .widgets-grid.tab-asset,
     .widgets-grid.tab-report,
     .widgets-grid.tab-study { grid-template-columns: 1fr; }
+    body.study-tab-active .widgets-grid {
+        display: block;
+        gap: 0;
+    }
     .asset-inputs { grid-template-columns: 1fr; }
     #logout-btn { align-self: stretch; }
+    body.study-tab-active #logout-btn {
+        margin: 0;
+        border-radius: 0;
+    }
     .cal-input-row { flex-wrap: wrap; }
     .memo-input-actions { flex-direction: column; }
     .memo-input-actions button { width: 100%; }
@@ -1121,8 +1187,15 @@ body.dark .browser-window {
     .study-view {
         border-radius: 12px;
     }
+    body.study-tab-active .study-view {
+        border-radius: 0;
+    }
     .study-page {
         padding: 10px 8px 28px;
+    }
+    body.study-tab-active .study-page {
+        max-width: none;
+        padding: 8px 8px 24px;
     }
     .study-header,
     .study-section {
@@ -1177,6 +1250,13 @@ body.dark .browser-window {
         margin: 10px 0;
         padding: 8px;
         overflow: hidden;
+    }
+    body.study-tab-active .study-nav {
+        position: sticky;
+        top: 103px;
+        z-index: 40;
+        margin: 8px 0;
+        box-shadow: 0 5px 15px rgba(31, 41, 51, 0.08);
     }
     .study-nav ul {
         flex-wrap: nowrap;
@@ -1287,14 +1367,30 @@ body.dark .browser-window {
     body {
         padding: 6px;
     }
+    body.study-tab-active {
+        padding: 0;
+    }
     .browser-content {
         padding: 7px;
     }
     .dashboard-header {
         padding: 14px 46px 14px 12px;
     }
+    body.study-tab-active .dashboard-header {
+        padding: 8px 44px 8px 8px;
+    }
+    body.study-tab-active .portal-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    body.study-tab-active .portal-tab-btn {
+        width: 100%;
+    }
     .study-page {
         padding: 7px 5px 22px;
+    }
+    body.study-tab-active .study-page {
+        padding: 6px 6px 20px;
     }
     .study-header,
     .study-section {
@@ -1325,6 +1421,9 @@ body.dark .browser-window {
         grid-template-columns: 64px minmax(0, 1fr);
         gap: 6px;
         font-size: 12px;
+    }
+    body.study-tab-active .study-nav {
+        top: 95px;
     }
 }
 

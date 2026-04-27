@@ -186,6 +186,7 @@ function handleLogout() {
     sessionStorage.removeItem('currentUserId');
     currentUserState.id = '';
     currentUserState.participants = DEFAULT_PARTICIPANTS.slice();
+    document.body.classList.remove('study-tab-active');
     document.getElementById('browser-window').style.display = 'none';
     document.getElementById('login-container').style.display = 'block';
     document.getElementById('password').value = '';
@@ -875,6 +876,7 @@ function initDashboardTabs() {
 
 function setDashboardTab(tabKey) {
     dashboardTabState.current = tabKey;
+    document.body.classList.toggle('study-tab-active', tabKey === 'study');
 
     var calendarWidget = document.getElementById('calendar-widget');
     var memoWidget = document.getElementById('memo-widget');
