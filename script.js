@@ -848,6 +848,7 @@ function loadDashboardData() {
     loadNews();
     loadAssets();
     initCalendar();
+    initStudyPlanner();
     initDashboardTabs();
 }
 
@@ -879,7 +880,8 @@ function setDashboardTab(tabKey) {
     var memoWidget = document.getElementById('memo-widget');
     var newsWidget = document.getElementById('news-widget');
     var assetWidget = document.getElementById('asset-widget');
-    var allWidgets = [calendarWidget, memoWidget, newsWidget, assetWidget];
+    var studyWidget = document.getElementById('study-widget');
+    var allWidgets = [calendarWidget, memoWidget, newsWidget, assetWidget, studyWidget];
     var grid = document.querySelector('.widgets-grid');
 
     var visibleWidgets;
@@ -887,6 +889,8 @@ function setDashboardTab(tabKey) {
         visibleWidgets = [assetWidget];
     } else if (tabKey === 'report') {
         visibleWidgets = [newsWidget];
+    } else if (tabKey === 'study') {
+        visibleWidgets = [studyWidget];
     } else {
         visibleWidgets = [calendarWidget, memoWidget];
     }
@@ -897,15 +901,61 @@ function setDashboardTab(tabKey) {
     });
 
     if (grid) {
-        grid.classList.remove('tab-schedule', 'tab-asset', 'tab-report');
+        grid.classList.remove('tab-schedule', 'tab-asset', 'tab-report', 'tab-study');
         if (tabKey === 'asset') grid.classList.add('tab-asset');
         else if (tabKey === 'report') grid.classList.add('tab-report');
+        else if (tabKey === 'study') grid.classList.add('tab-study');
         else grid.classList.add('tab-schedule');
     }
 
     document.querySelectorAll('.portal-tab-btn').forEach(function(btn) {
         btn.classList.toggle('active', btn.getAttribute('data-tab') === tabKey);
     });
+}
+
+function initStudyPlanner() {
+    var root = document.getElementById('study-widget');
+    if (!root) return;
+
+    var storagePrefix = 'study-plan-30days:';
+    var progressEl = document.getElementById('study-day-progress');
+
+    function updateStudyProgress() {
+        var dayChecks = Array.prototype.slice.call(root.querySelectorAll('.study-day-check'));
+        var done = dayChecks.filter(function(check) { return check.checked; }).length;
+        if (progressEl) {
+            progressEl.textContent = done + '/30';
+        }
+    }
+
+    if (root.dataset.studyPlannerInitialized === '1') {
+        updateStudyProgress();
+        return;
+    }
+
+    var checks = Array.prototype.slice.call(root.querySelectorAll('input[type="checkbox"]'));
+    checks.forEach(function(check) {
+        var saved = localStorage.getItem(storagePrefix + check.id);
+        check.checked = saved === 'true';
+        check.addEventListener('change', function() {
+            localStorage.setItem(storagePrefix + check.id, String(check.checked));
+            updateStudyProgress();
+        });
+    });
+
+    var resetBtn = document.getElementById('study-reset-checks');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            checks.forEach(function(check) {
+                check.checked = false;
+                localStorage.removeItem(storagePrefix + check.id);
+            });
+            updateStudyProgress();
+        });
+    }
+
+    root.dataset.studyPlannerInitialized = '1';
+    updateStudyProgress();
 }
 
 // ===== 달력 위젯 =====

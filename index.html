@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>비밀 포털 대시보드</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260415-2">
+    <link rel="stylesheet" href="style.css?v=20260427-1">
 </head>
 <body>
     <div id="login-container">
@@ -63,6 +63,7 @@
                         <button type="button" class="portal-tab-btn active" data-tab="schedule">스케쥴관리</button>
                         <button type="button" class="portal-tab-btn" data-tab="asset">자산관리</button>
                         <button type="button" class="portal-tab-btn" data-tab="report">뉴스데스크</button>
+                        <button type="button" class="portal-tab-btn" data-tab="study">스터디</button>
                     </div>
                     <p id="greeting"></p>
                     <button id="account-settings-btn" class="account-settings-btn" type="button" title="계정 편집"><i class="fas fa-user-gear"></i></button>
@@ -192,6 +193,275 @@
                             <p>이렇게 관리해 드릴게요</p>
                         </div>
                     </section>
+
+                    <section class="card study-widget" id="study-widget">
+                        <div class="study-view">
+                            <div class="study-page">
+                                <header class="study-header">
+                                    <p class="study-eyebrow">2026-04-27 ~ 2026-05-26 · 매일 2시간</p>
+                                    <h1>30일 한국어 유튜브 AI 앱 제작 독학 계획</h1>
+                                    <p class="study-lead">초보자에서 AI 앱 제작 입문 마스터까지 가기 위한 30일 실행표입니다. 최종 목표는 개인 문서 Q&amp;A 챗봇/RAG 프로토타입을 만드는 것입니다.</p>
+                                    <div class="study-toolbar" aria-label="문서 도구">
+                                        <button type="button" onclick="window.print()">인쇄</button>
+                                        <button type="button" class="secondary" id="study-reset-checks">체크 초기화</button>
+                                    </div>
+                                    <div class="study-stats" aria-label="학습 요약">
+                                        <div class="study-stat"><b>30일</b><span>전체 학습 기간</span></div>
+                                        <div class="study-stat"><b>60시간</b><span>총 학습 시간</span></div>
+                                        <div class="study-stat"><b id="study-day-progress">0/30</b><span>일차 완료</span></div>
+                                        <div class="study-stat"><b>1개</b><span>최종 AI 앱</span></div>
+                                    </div>
+                                </header>
+
+                                <nav class="study-nav" aria-label="스터디 목차">
+                                    <ul>
+                                        <li><a href="#study-goal">목표</a></li>
+                                        <li><a href="#study-resources">자료</a></li>
+                                        <li><a href="#study-routine">루틴</a></li>
+                                        <li><a href="#study-schedule">30일 실행표</a></li>
+                                        <li><a href="#study-app-spec">앱 스펙</a></li>
+                                        <li><a href="#study-tests">테스트</a></li>
+                                        <li><a href="#study-log">기록 템플릿</a></li>
+                                        <li><a href="#study-weekly">주간 점검</a></li>
+                                    </ul>
+                                </nav>
+
+                                <main class="study-main">
+                                    <section class="study-section" id="study-goal">
+                                        <h2>목표</h2>
+                                        <div class="study-grid">
+                                            <div class="study-callout">
+                                                <h3>학습 방향</h3>
+                                                <ul>
+                                                    <li>무료 한국어 유튜브/공개 자료를 우선 사용한다.</li>
+                                                    <li>유료 API는 선택 과제로 둔다.</li>
+                                                    <li>연구자 수준이 아니라, 직접 AI 앱을 만들 수 있는 실전 입문 완성을 목표로 한다.</li>
+                                                </ul>
+                                            </div>
+                                            <div class="study-callout green">
+                                                <h3>최종 산출물</h3>
+                                                <ul>
+                                                    <li>개인 문서 Q&amp;A 챗봇/RAG 프로토타입</li>
+                                                    <li>문서 검색, 근거 문단 표시, 출처 표시</li>
+                                                    <li>문서에 없는 질문에는 <code>자료에서 찾을 수 없음</code> 반환</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <h3>성공 기준</h3>
+                                        <ul>
+                                            <li>AI, ML, DL, LLM의 차이를 비전공자에게 5문장으로 설명할 수 있다.</li>
+                                            <li>지도학습, 비지도학습, 강화학습, 과적합, RAG를 자기 말로 설명할 수 있다.</li>
+                                            <li>PyTorch 기초 실습 노트북 1개를 직접 실행하고 핵심 코드를 설명할 수 있다.</li>
+                                            <li>개인 문서 3개 이상을 넣고 한국어 질문에 관련 근거 문단을 찾아주는 앱을 만든다.</li>
+                                        </ul>
+                                    </section>
+
+                                    <section class="study-section" id="study-resources">
+                                        <h2>핵심 학습 자료</h2>
+                                        <ul class="study-resources">
+                                            <li><a href="https://opentutorials.org/course/4548">생활코딩 머신러닝1</a>: AI/머신러닝 개념 입문</li>
+                                            <li><a href="https://deeplearningzerotoall.github.io/season2/lec_pytorch.html">모두를 위한 딥러닝 시즌2 - PyTorch</a>: PyTorch와 딥러닝 기초 실습</li>
+                                            <li><a href="https://github.com/teddylee777/langchain-kr">테디노트 LangChain 한국어 튜토리얼</a>: LLM 앱, RAG, LangChain 실습 참고</li>
+                                            <li><a href="https://www.yes24.com/Product/Goods/124418561">조코딩 ChatGPT API 자료</a>: 생성형 AI 앱 제작 흐름 참고</li>
+                                            <li><a href="https://www.udemy.com/user/nadokoding/">나도코딩 파이썬</a>: 파이썬 기초가 흔들릴 때 보조 자료로 사용</li>
+                                        </ul>
+                                    </section>
+
+                                    <section class="study-section" id="study-routine">
+                                        <h2>매일 루틴</h2>
+                                        <ul class="study-checklist">
+                                            <li><input id="study-routine-1" type="checkbox"><label for="study-routine-1">10분: 어제 배운 용어 3개와 코드 1개 복습</label></li>
+                                            <li><input id="study-routine-2" type="checkbox"><label for="study-routine-2">45분: 한국어 강의 시청</label></li>
+                                            <li><input id="study-routine-3" type="checkbox"><label for="study-routine-3">50분: Colab 또는 VS Code 실습</label></li>
+                                            <li><input id="study-routine-4" type="checkbox"><label for="study-routine-4">15분: 오늘 배운 것, 막힌 것, 실행 결과, 내일 할 것 기록</label></li>
+                                        </ul>
+                                        <p class="study-footer-note">매일 시작할 때 루틴 체크박스를 초기화해서 쓰면 됩니다.</p>
+                                    </section>
+
+                                    <section class="study-section" id="study-schedule">
+                                        <h2>30일 실행표</h2>
+                                        <div class="study-table-wrap">
+                                            <table class="study-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th scope="col">완료</th>
+                                                        <th scope="col">Day</th>
+                                                        <th scope="col">날짜</th>
+                                                        <th scope="col">주차</th>
+                                                        <th scope="col">핵심 주제</th>
+                                                        <th scope="col">강의/자료</th>
+                                                        <th scope="col">오늘의 산출물</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr><td><input id="study-day-1" class="study-day-check" type="checkbox" aria-label="Day 1 완료"></td><td>1</td><td>2026-04-27</td><td><span class="study-week">1주차</span></td><td>AI, ML, DL, LLM 차이</td><td>생활코딩 머신러닝1 시작</td><td>네 개념 차이를 5문장으로 정리</td></tr>
+                                                    <tr><td><input id="study-day-2" class="study-day-check" type="checkbox" aria-label="Day 2 완료"></td><td>2</td><td>2026-04-28</td><td><span class="study-week">1주차</span></td><td>Teachable Machine</td><td>생활코딩 머신러닝1</td><td>입력, 모델, 출력 개념 정리</td></tr>
+                                                    <tr><td><input id="study-day-3" class="study-day-check" type="checkbox" aria-label="Day 3 완료"></td><td>3</td><td>2026-04-29</td><td><span class="study-week">1주차</span></td><td>학습 방식 분류</td><td>생활코딩 머신러닝1</td><td>지도/비지도/강화학습 예시 10개</td></tr>
+                                                    <tr><td><input id="study-day-4" class="study-day-check" type="checkbox" aria-label="Day 4 완료"></td><td>4</td><td>2026-04-30</td><td><span class="study-week">1주차</span></td><td>파이썬/Colab 복습</td><td>나도코딩 또는 기존 파이썬 자료</td><td>변수, 리스트, 딕셔너리, 함수 코드</td></tr>
+                                                    <tr><td><input id="study-day-5" class="study-day-check" type="checkbox" aria-label="Day 5 완료"></td><td>5</td><td>2026-05-01</td><td><span class="study-week">1주차</span></td><td>pandas 기초</td><td>pandas 입문 영상 또는 공식 예제</td><td>CSV 읽기, 표 확인, 결측치 확인</td></tr>
+                                                    <tr><td><input id="study-day-6" class="study-day-check" type="checkbox" aria-label="Day 6 완료"></td><td>6</td><td>2026-05-02</td><td><span class="study-week">1주차</span></td><td>데이터 분리와 과적합</td><td>머신러닝 기초 영상</td><td>train/validation/test와 과적합 설명</td></tr>
+                                                    <tr><td><input id="study-day-7" class="study-day-check" type="checkbox" aria-label="Day 7 완료"></td><td>7</td><td>2026-05-03</td><td><span class="study-week">1주차</span></td><td>1주차 복습</td><td>이번 주 기록</td><td>AI 용어 20개 미니 사전</td></tr>
+                                                    <tr><td><input id="study-day-8" class="study-day-check" type="checkbox" aria-label="Day 8 완료"></td><td>8</td><td>2026-05-04</td><td><span class="study-week">2주차</span></td><td>PyTorch Tensor</td><td>모두를 위한 딥러닝 시즌2 PyTorch</td><td>Tensor 생성/연산 실습</td></tr>
+                                                    <tr><td><input id="study-day-9" class="study-day-check" type="checkbox" aria-label="Day 9 완료"></td><td>9</td><td>2026-05-05</td><td><span class="study-week">2주차</span></td><td>선형회귀와 손실함수</td><td>PyTorch Lab-02</td><td>선형회귀 코드 실행 및 손실 변화 기록</td></tr>
+                                                    <tr><td><input id="study-day-10" class="study-day-check" type="checkbox" aria-label="Day 10 완료"></td><td>10</td><td>2026-05-06</td><td><span class="study-week">2주차</span></td><td>로지스틱 회귀</td><td>PyTorch Lab-05</td><td>이진 분류 코드와 sigmoid 설명</td></tr>
+                                                    <tr><td><input id="study-day-11" class="study-day-check" type="checkbox" aria-label="Day 11 완료"></td><td>11</td><td>2026-05-07</td><td><span class="study-week">2주차</span></td><td>DataLoader와 mini-batch</td><td>PyTorch Lab-04-2</td><td>Dataset/DataLoader 예제 실행</td></tr>
+                                                    <tr><td><input id="study-day-12" class="study-day-check" type="checkbox" aria-label="Day 12 완료"></td><td>12</td><td>2026-05-08</td><td><span class="study-week">2주차</span></td><td>MNIST 분류</td><td>PyTorch MNIST 실습</td><td>손글씨 숫자 분류 모델 실행</td></tr>
+                                                    <tr><td><input id="study-day-13" class="study-day-check" type="checkbox" aria-label="Day 13 완료"></td><td>13</td><td>2026-05-09</td><td><span class="study-week">2주차</span></td><td>MLP, ReLU, Dropout</td><td>PyTorch Lab-08/09</td><td>MLP 구조와 ReLU 역할 정리</td></tr>
+                                                    <tr><td><input id="study-day-14" class="study-day-check" type="checkbox" aria-label="Day 14 완료"></td><td>14</td><td>2026-05-10</td><td><span class="study-week">2주차</span></td><td>2주차 복습</td><td>이번 주 기록</td><td>"모델이 학습한다" 설명 글</td></tr>
+                                                    <tr><td><input id="study-day-15" class="study-day-check" type="checkbox" aria-label="Day 15 완료"></td><td>15</td><td>2026-05-11</td><td><span class="study-week">3주차</span></td><td>LLM, 프롬프트, API</td><td>테디노트/조코딩 자료</td><td>LLM 앱 구조 한 페이지 정리</td></tr>
+                                                    <tr><td><input id="study-day-16" class="study-day-check" type="checkbox" aria-label="Day 16 완료"></td><td>16</td><td>2026-05-12</td><td><span class="study-week">3주차</span></td><td>LangChain 기본 구조</td><td>LangChain 한국어 튜토리얼</td><td>Prompt, Model, Output Parser 흐름 정리</td></tr>
+                                                    <tr><td><input id="study-day-17" class="study-day-check" type="checkbox" aria-label="Day 17 완료"></td><td>17</td><td>2026-05-13</td><td><span class="study-week">3주차</span></td><td>문서 로더와 텍스트 분할</td><td>LangChain DocumentLoader/TextSplitter</td><td>chunk 크기와 overlap 개념 정리</td></tr>
+                                                    <tr><td><input id="study-day-18" class="study-day-check" type="checkbox" aria-label="Day 18 완료"></td><td>18</td><td>2026-05-14</td><td><span class="study-week">3주차</span></td><td>RAG 개념</td><td>LangChain RAG 자료</td><td>RAG 파이프라인 도식 작성</td></tr>
+                                                    <tr><td><input id="study-day-19" class="study-day-check" type="checkbox" aria-label="Day 19 완료"></td><td>19</td><td>2026-05-15</td><td><span class="study-week">3주차</span></td><td>개인 문서 chunking</td><td>직접 작성한 노트 2~3개</td><td>문단 단위 chunk 샘플 만들기</td></tr>
+                                                    <tr><td><input id="study-day-20" class="study-day-check" type="checkbox" aria-label="Day 20 완료"></td><td>20</td><td>2026-05-16</td><td><span class="study-week">3주차</span></td><td>무료 검색 MVP</td><td>TF-IDF 또는 예제 벡터 검색</td><td>질문과 관련 문단 검색 코드</td></tr>
+                                                    <tr><td><input id="study-day-21" class="study-day-check" type="checkbox" aria-label="Day 21 완료"></td><td>21</td><td>2026-05-17</td><td><span class="study-week">3주차</span></td><td>3주차 복습</td><td>이번 주 기록</td><td>RAG 파이프라인 그림과 용어 정리</td></tr>
+                                                    <tr><td><input id="study-day-22" class="study-day-check" type="checkbox" aria-label="Day 22 완료"></td><td>22</td><td>2026-05-18</td><td><span class="study-week">4주차</span></td><td>최종 앱 정의</td><td>내 공부 노트 Q&amp;A 챗봇</td><td>앱 기능 목록과 화면 스케치</td></tr>
+                                                    <tr><td><input id="study-day-23" class="study-day-check" type="checkbox" aria-label="Day 23 완료"></td><td>23</td><td>2026-05-19</td><td><span class="study-week">4주차</span></td><td>문서 읽기 기능</td><td>Python 파일 처리</td><td>txt/md 폴더 읽기 기능</td></tr>
+                                                    <tr><td><input id="study-day-24" class="study-day-check" type="checkbox" aria-label="Day 24 완료"></td><td>24</td><td>2026-05-20</td><td><span class="study-week">4주차</span></td><td>검색과 출처 표시</td><td>TF-IDF 검색 코드</td><td>질문 -&gt; 관련 문단 -&gt; 출처 출력</td></tr>
+                                                    <tr><td><input id="study-day-25" class="study-day-check" type="checkbox" aria-label="Day 25 완료"></td><td>25</td><td>2026-05-21</td><td><span class="study-week">4주차</span></td><td>모르는 질문 처리</td><td>자체 테스트 질문</td><td>"자료에서 찾을 수 없음" 처리</td></tr>
+                                                    <tr><td><input id="study-day-26" class="study-day-check" type="checkbox" aria-label="Day 26 완료"></td><td>26</td><td>2026-05-22</td><td><span class="study-week">4주차</span></td><td>선택: LLM 답변 생성</td><td>API 키가 있을 때만 진행</td><td>검색 문단 기반 답변 생성 연결</td></tr>
+                                                    <tr><td><input id="study-day-27" class="study-day-check" type="checkbox" aria-label="Day 27 완료"></td><td>27</td><td>2026-05-23</td><td><span class="study-week">4주차</span></td><td>앱 테스트 질문</td><td>직접 만든 테스트셋</td><td>정답/불가능/애매한 질문 20개</td></tr>
+                                                    <tr><td><input id="study-day-28" class="study-day-check" type="checkbox" aria-label="Day 28 완료"></td><td>28</td><td>2026-05-24</td><td><span class="study-week">4주차</span></td><td>간단 UI</td><td>Streamlit 또는 Gradio</td><td>문서 선택, 질문 입력, 답변 화면</td></tr>
+                                                    <tr><td><input id="study-day-29" class="study-day-check" type="checkbox" aria-label="Day 29 완료"></td><td>29</td><td>2026-05-25</td><td><span class="study-week">4주차</span></td><td>문서화와 발표 준비</td><td>README 작성</td><td>실행 방법, 스크린샷, 3분 발표 스크립트</td></tr>
+                                                    <tr><td><input id="study-day-30" class="study-day-check" type="checkbox" aria-label="Day 30 완료"></td><td>30</td><td>2026-05-26</td><td><span class="study-week">4주차</span></td><td>최종 점검</td><td>전체 복습</td><td>앱 시연, 개념 설명, 다음 30일 계획</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+
+                                    <section class="study-section" id="study-app-spec">
+                                        <h2>최종 앱 스펙</h2>
+                                        <div class="study-grid">
+                                            <div class="study-callout">
+                                                <h3>이름</h3>
+                                                <p>내 공부 노트 Q&amp;A 챗봇</p>
+                                                <h3>입력</h3>
+                                                <ul>
+                                                    <li>개인 문서: <code>.txt</code>, <code>.md</code></li>
+                                                    <li>선택 확장: <code>.pdf</code></li>
+                                                    <li>사용자 질문: 한국어 자연어 질문</li>
+                                                </ul>
+                                            </div>
+                                            <div class="study-callout gold">
+                                                <h3>출력</h3>
+                                                <ul>
+                                                    <li>답변 초안</li>
+                                                    <li>근거 문단</li>
+                                                    <li>출처 파일명</li>
+                                                    <li>근거가 없을 때: <code>자료에서 찾을 수 없음</code></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <h3>무료 기본형 동작</h3>
+                                        <ol>
+                                            <li>폴더 안의 개인 문서를 읽는다.</li>
+                                            <li>문서를 문단 또는 고정 길이 chunk로 나눈다.</li>
+                                            <li>질문과 chunk를 TF-IDF 또는 무료 임베딩 방식으로 비교한다.</li>
+                                            <li>유사도가 높은 근거 문단 3개를 보여준다.</li>
+                                            <li>유사도가 낮으면 답을 만들지 않고 <code>자료에서 찾을 수 없음</code>을 반환한다.</li>
+                                        </ol>
+                                        <h3>선택 확장형 동작</h3>
+                                        <ul>
+                                            <li>API 키가 있을 때만 LLM 답변 생성을 연결한다.</li>
+                                            <li>LLM에는 검색된 근거 문단만 전달한다.</li>
+                                            <li>근거에 없는 내용은 추측하지 않도록 프롬프트에 명시한다.</li>
+                                        </ul>
+                                    </section>
+
+                                    <section class="study-section" id="study-tests">
+                                        <h2>테스트 계획</h2>
+                                        <div class="study-grid">
+                                            <div>
+                                                <h3>개념 테스트</h3>
+                                                <ul class="study-checklist">
+                                                    <li><input id="study-test-concept-1" type="checkbox"><label for="study-test-concept-1">AI/ML/DL/LLM 차이를 설명한다.</label></li>
+                                                    <li><input id="study-test-concept-2" type="checkbox"><label for="study-test-concept-2">지도학습/비지도학습/강화학습 예시를 각각 2개 이상 든다.</label></li>
+                                                    <li><input id="study-test-concept-3" type="checkbox"><label for="study-test-concept-3">과적합과 train/validation/test 분리 이유를 설명한다.</label></li>
+                                                    <li><input id="study-test-concept-4" type="checkbox"><label for="study-test-concept-4">RAG가 필요한 이유를 설명한다.</label></li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h3>코드 테스트</h3>
+                                                <ul class="study-checklist">
+                                                    <li><input id="study-test-code-1" type="checkbox"><label for="study-test-code-1">PyTorch Tensor 연산 노트북이 실행된다.</label></li>
+                                                    <li><input id="study-test-code-2" type="checkbox"><label for="study-test-code-2">선형회귀 또는 로지스틱 회귀 실습이 실행된다.</label></li>
+                                                    <li><input id="study-test-code-3" type="checkbox"><label for="study-test-code-3">문서 검색 앱이 개인 문서 폴더를 읽는다.</label></li>
+                                                    <li><input id="study-test-code-4" type="checkbox"><label for="study-test-code-4">질문 입력 시 관련 문단과 출처를 출력한다.</label></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <h3>앱 테스트</h3>
+                                        <ul class="study-checklist">
+                                            <li><input id="study-test-app-1" type="checkbox"><label for="study-test-app-1">개인 문서 3개 이상으로 테스트한다.</label></li>
+                                            <li><input id="study-test-app-2" type="checkbox"><label for="study-test-app-2">테스트 질문 20개 중 15개 이상에 적절한 근거 문단을 찾는다.</label></li>
+                                            <li><input id="study-test-app-3" type="checkbox"><label for="study-test-app-3">문서에 없는 질문 3개 이상에서 <code>자료에서 찾을 수 없음</code>을 반환한다.</label></li>
+                                            <li><input id="study-test-app-4" type="checkbox"><label for="study-test-app-4">앱 실행 방법을 README만 보고 따라 할 수 있다.</label></li>
+                                        </ul>
+                                    </section>
+
+                                    <section class="study-section" id="study-log">
+                                        <h2>매일 기록 템플릿</h2>
+                                        <pre><code>### Day N - YYYY-MM-DD
+- 오늘 배운 것:
+- 막힌 것:
+- 실행 결과:
+- 내일 할 것:
+- 오늘의 용어 3개:
+- 오늘의 코드 1개:</code></pre>
+                                    </section>
+
+                                    <section class="study-section" id="study-weekly">
+                                        <h2>주간 점검</h2>
+                                        <div class="study-grid">
+                                            <div class="study-callout">
+                                                <h3>1주차: AI 개념과 파이썬 기초</h3>
+                                                <ul class="study-checklist">
+                                                    <li><input id="study-week-1-1" type="checkbox"><label for="study-week-1-1">머신러닝이 무엇인지 설명할 수 있다.</label></li>
+                                                    <li><input id="study-week-1-2" type="checkbox"><label for="study-week-1-2">간단한 Python/pandas 코드를 실행할 수 있다.</label></li>
+                                                    <li><input id="study-week-1-3" type="checkbox"><label for="study-week-1-3">AI 용어 20개 미니 사전을 만들었다.</label></li>
+                                                </ul>
+                                            </div>
+                                            <div class="study-callout">
+                                                <h3>2주차: PyTorch와 딥러닝 기초</h3>
+                                                <ul class="study-checklist">
+                                                    <li><input id="study-week-2-1" type="checkbox"><label for="study-week-2-1">Tensor, 손실함수, optimizer의 역할을 설명할 수 있다.</label></li>
+                                                    <li><input id="study-week-2-2" type="checkbox"><label for="study-week-2-2">간단한 분류 모델을 실행했다.</label></li>
+                                                    <li><input id="study-week-2-3" type="checkbox"><label for="study-week-2-3">모델 학습 과정을 비전공자에게 설명하는 글을 작성했다.</label></li>
+                                                </ul>
+                                            </div>
+                                            <div class="study-callout">
+                                                <h3>3주차: LLM 앱과 RAG 구조</h3>
+                                                <ul class="study-checklist">
+                                                    <li><input id="study-week-3-1" type="checkbox"><label for="study-week-3-1">Prompt, Model, Output Parser 흐름을 설명할 수 있다.</label></li>
+                                                    <li><input id="study-week-3-2" type="checkbox"><label for="study-week-3-2">DocumentLoader, TextSplitter, Retriever의 역할을 설명할 수 있다.</label></li>
+                                                    <li><input id="study-week-3-3" type="checkbox"><label for="study-week-3-3">RAG 파이프라인 그림을 작성했다.</label></li>
+                                                </ul>
+                                            </div>
+                                            <div class="study-callout">
+                                                <h3>4주차: 최종 앱 제작</h3>
+                                                <ul class="study-checklist">
+                                                    <li><input id="study-week-4-1" type="checkbox"><label for="study-week-4-1">문서 읽기, 검색, 출처 표시가 동작한다.</label></li>
+                                                    <li><input id="study-week-4-2" type="checkbox"><label for="study-week-4-2">모르는 질문을 안전하게 처리한다.</label></li>
+                                                    <li><input id="study-week-4-3" type="checkbox"><label for="study-week-4-3">3분 발표 스크립트와 실행 문서를 작성했다.</label></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section class="study-section">
+                                        <h2>다음 30일 후보</h2>
+                                        <ul>
+                                            <li>RAG 품질 개선: chunking, reranker, 평가 데이터셋 만들기</li>
+                                            <li>Streamlit 앱 배포: Streamlit Community Cloud 또는 Hugging Face Spaces</li>
+                                            <li>LangChain/LangGraph 심화: agent, tool calling, workflow</li>
+                                            <li>PyTorch 심화: CNN, Transformer, fine-tuning</li>
+                                        </ul>
+                                    </section>
+                                </main>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <button id="logout-btn" type="button">로그아웃</button>
@@ -223,6 +493,6 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="script.js?v=20260415-2"></script>
+    <script src="script.js?v=20260427-1"></script>
 </body>
 </html>
