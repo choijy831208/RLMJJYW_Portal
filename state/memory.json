@@ -1,0 +1,23 @@
+{
+  "project": "TeamStudy Family Portal",
+  "storage": "localStorage",
+  "runtime": "static-html",
+  "agent_added_portals": [
+    "가족 할일 포털"
+  ],
+  "known_constraints": [
+    "서버 인증 없음",
+    "기기 간 동기화 없음",
+    "외부 뉴스 API 없음"
+  ],
+  "auth": {
+    "method": "family-code-password",
+    "store": "teamstudy.family.auth",
+    "password_storage": "local-hash-only"
+  },
+  "mobile": {
+    "navigation": "fixed-bottom-tabs",
+    "safe_area": true,
+    "input_font_min_px": 16
+  }
+}

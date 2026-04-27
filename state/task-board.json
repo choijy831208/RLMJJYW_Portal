@@ -1,0 +1,76 @@
+{
+  "tasks": [
+    {
+      "id": "task-001",
+      "title": "가족포털 요구사항 정리",
+      "owner": "planning",
+      "status": "done",
+      "priority": "high",
+      "acceptance_criteria": [
+        "기본 포털 4개가 정의되어 있다.",
+        "추가 포털 결정 근거가 기록되어 있다."
+      ],
+      "blocked_by": [],
+      "updated_at": "2026-04-27T00:00:00+09:00"
+    },
+    {
+      "id": "task-002",
+      "title": "HTML 가족포털 구현",
+      "owner": "development",
+      "status": "review",
+      "priority": "high",
+      "acceptance_criteria": [
+        "index.html을 브라우저에서 열 수 있다.",
+        "localStorage 기반 저장 로직이 있다.",
+        "메인, 스케줄, 자산, 뉴스, 가족 할일, 에이전트 화면이 있다."
+      ],
+      "blocked_by": [],
+      "updated_at": "2026-04-27T00:00:00+09:00"
+    },
+    {
+      "id": "task-003",
+      "title": "초기 검증",
+      "owner": "verification",
+      "status": "done",
+      "priority": "medium",
+      "acceptance_criteria": [
+        "JavaScript 문법 검증을 통과한다.",
+        "브라우저 수동 검증 항목이 정리되어 있다."
+      ],
+      "blocked_by": [
+        "task-002"
+      ],
+      "updated_at": "2026-04-27T00:00:00+09:00"
+    },
+    {
+      "id": "task-004",
+      "title": "가족 코드와 비밀번호 로그인",
+      "owner": "development",
+      "status": "done",
+      "priority": "high",
+      "acceptance_criteria": [
+        "가족 코드와 비밀번호가 필수 입력이다.",
+        "비밀번호 원문은 저장하지 않는다.",
+        "오입력 시 포털 진입을 차단한다.",
+        "설정에서 비밀번호를 변경할 수 있다."
+      ],
+      "blocked_by": [],
+      "updated_at": "2026-04-28T00:00:00+09:00"
+    },
+    {
+      "id": "task-005",
+      "title": "핸드폰 화면 최적화",
+      "owner": "development",
+      "status": "done",
+      "priority": "high",
+      "acceptance_criteria": [
+        "모바일에서 메뉴가 하단 탭으로 표시된다.",
+        "하단 탭이 콘텐츠와 주요 버튼을 가리지 않는다.",
+        "모바일 입력창 글자 크기가 16px 이상이다.",
+        "390px 이하 화면에서 집계 카드가 1열로 전환된다."
+      ],
+      "blocked_by": [],
+      "updated_at": "2026-04-28T00:00:00+09:00"
+    }
+  ]
+}
