@@ -437,6 +437,7 @@ p {
 }
 
 .workspace {
+  align-self: start;
   min-width: 0;
   padding: 24px;
 }
@@ -944,6 +945,7 @@ p {
   }
 
   .workspace {
+    min-height: 100svh;
     padding: 0 12px calc(92px + env(safe-area-inset-bottom));
   }
 

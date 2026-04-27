@@ -364,6 +364,26 @@
     $$(".view").forEach((section) => section.classList.toggle("active", section.id === `view-${view}`));
     $$(".nav-button").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
     $("#view-title").textContent = VIEW_TITLES[view] || "메인 포털";
+    requestAnimationFrame(scrollPortalToTop);
+  }
+
+  function scrollPortalToTop() {
+    const workspace = $(".workspace");
+    const activeView = $(`#view-${state.view}`);
+
+    if (workspace) {
+      workspace.scrollTop = 0;
+    }
+
+    if (activeView) {
+      activeView.scrollTop = 0;
+    }
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto"
+    });
   }
 
   function loadState() {
